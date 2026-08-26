@@ -1,0 +1,21 @@
+{
+  "name": "rig-trigger-ar",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Stage 1 WebAR prototype: physical rig as one-shot trigger, then independent world-anchored 3D model.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "generate-assets": "node scripts/generate-assets.mjs"
+  },
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^1.2.0",
+    "vite": "^5.4.11"
+  }
+}

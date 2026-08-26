@@ -1,0 +1,6 @@
+AlvaAR is included under GPLv3.
+
+Upstream: https://github.com/alanross/AlvaAR
+License: https://www.gnu.org/licenses/gpl-3.0.txt
+
+This Stage 1 prototype vendors `public/vendor/alva_ar.js` for iOS Safari world tracking.

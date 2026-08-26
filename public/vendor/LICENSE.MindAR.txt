@@ -1,0 +1,4 @@
+MindAR (mind-ar-js) is MIT-licensed.
+
+Upstream: https://github.com/hiukim/mind-ar-js
+Vendored browser chunks: mindar-image.prod.js, controller-mGt1s8dJ.js, ui-fBadYuor.js

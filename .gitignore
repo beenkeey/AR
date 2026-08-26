@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.DS_Store
+Thumbs.db
+*.log
+.vite/
+ssl/
+.env
+.env.*
+!.env.example
+.idea/
