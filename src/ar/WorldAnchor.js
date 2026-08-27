@@ -22,11 +22,11 @@ export class WorldAnchor {
   }
 
   lock() {
+    if (this.locked) return;
     if (this.group.matrixAutoUpdate) {
-      this.group.updateMatrix();
-    } else {
-      this.group.matrix.decompose(this.group.position, this.group.quaternion, this.group.scale);
+      this.group.matrix.compose(this.group.position, this.group.quaternion, this.group.scale);
     }
+    this.group.matrix.decompose(this.group.position, this.group.quaternion, this.group.scale);
     this.group.matrixAutoUpdate = false;
     this.group.updateMatrixWorld(true);
     this.locked = true;

@@ -1,7 +1,7 @@
 export const STATES = {
   SCAN: 'SCAN',
   TRANSITION: 'TRANSITION',
-  EXHIBITION: 'EXHIBITION',
+  EXHIBITION: 'AR_VIEW',
 };
 
 export class AppState {

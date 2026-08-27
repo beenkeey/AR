@@ -17,16 +17,19 @@ export class ARSession {
     this.scanScene.name = 'Scan';
     this.activeScene = this.scanScene;
 
-    this.camera = new THREE.PerspectiveCamera(75, 1, 0.05, 250);
+    this.camera = new THREE.PerspectiveCamera(CONFIG.exhibition.cameraFov, 1, 0.05, CONFIG.exhibition.cameraFar);
     this.camera.rotation.reorder('YXZ');
 
     this.renderer = new THREE.WebGLRenderer({
-      antialias: !CONFIG.performance.weak,
+      antialias: true,
       alpha: true,
       powerPreference: 'high-performance',
     });
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.dithering = true;
     this.renderer.domElement.className = 'ar-canvas';
 
     this.container.appendChild(this.video);
@@ -35,9 +38,11 @@ export class ARSession {
     this.stream = null;
     this.running = false;
     this.onFrame = null;
+    this.onAfterRender = null;
     this._frame = 0;
     this._fpsLast = 0;
     this.fps = 0;
+    this.lastRenderAt = 0;
     this.projectionLocked = false;
     this._onResize = () => this.resize();
   }
@@ -52,20 +57,27 @@ export class ARSession {
     this.activeScene = this.scanScene;
     this.camera.near = 0.05;
     this.camera.far = 250;
+    this.camera.fov = CONFIG.exhibition.cameraFov;
     this.projectionLocked = false;
     this.resize();
   }
 
-  showBlackExhibition(scene) {
-    this.video.classList.remove('is-hidden');
-    this.renderer.setClearColor(0x000000, 1);
+  showExhibition(scene) {
+    this.video.classList.add('is-hidden');
+    this.renderer.setClearColor(0xa9c7dc, 1);
     this.activeScene = scene;
-    this.camera.near = 0.05;
-    this.camera.far = 250;
+    this.camera.near = CONFIG.exhibition.cameraNear;
+    this.camera.far = CONFIG.exhibition.cameraFar;
+    this.camera.fov = CONFIG.exhibition.cameraFov;
     this.projectionLocked = false;
-    this.camera.aspect = (this.container.clientWidth || window.innerWidth)
-      / (this.container.clientHeight || window.innerHeight);
-    this.camera.updateProjectionMatrix();
+    this.resize();
+    void this.video.play?.();
+  }
+
+  async ensureCamera() {
+    const live = Boolean(this.stream?.getVideoTracks?.().some((track) => track.readyState === 'live'));
+    if (live && this.video.srcObject) return this.video;
+    return this.startCamera();
   }
 
   async startCamera() {
@@ -107,12 +119,14 @@ export class ARSession {
     this.running = true;
     this._fpsLast = performance.now();
     window.addEventListener('resize', this._onResize);
+    window.addEventListener('orientationchange', this._onResize);
     this.renderer.setAnimationLoop((now) => this._tick(now));
   }
 
   _tick(now) {
     if (!this.running) return;
     this._frame += 1;
+    this.lastRenderAt = now;
     if (now - this._fpsLast >= 500) {
       this.fps = Math.round((this._frame * 1000) / (now - this._fpsLast));
       this._frame = 0;
@@ -120,6 +134,8 @@ export class ARSession {
     }
     this.onFrame?.(now);
     this.renderer.render(this.activeScene, this.camera);
+    // SLAM / getImageData after paint so a slow findCameraPose cannot freeze the picture.
+    this.onAfterRender?.(now);
   }
 
   resize() {
@@ -145,6 +161,7 @@ export class ARSession {
     this.running = false;
     this.renderer.setAnimationLoop(null);
     window.removeEventListener('resize', this._onResize);
+    window.removeEventListener('orientationchange', this._onResize);
     this.stream?.getTracks()?.forEach((track) => track.stop());
     this.stream = null;
     this.video.srcObject = null;

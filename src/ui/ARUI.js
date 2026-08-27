@@ -3,7 +3,7 @@ export class BackButton {
     this.button = document.createElement('button');
     this.button.type = 'button';
     this.button.className = 'back-button';
-    this.button.textContent = '← Назад к сканированию';
+    this.button.textContent = 'НАЗАД';
     this.button.addEventListener('click', onClick);
   }
 }
@@ -12,10 +12,16 @@ export class ARUI {
   constructor({ onBack }) {
     this.el = document.createElement('div');
     this.el.className = 'overlay overlay-ar';
+
     this.back = new BackButton({ onClick: onBack });
     this.el.appendChild(this.back.button);
+
     this.hide();
   }
+
+  setScaleMode(_mode) {}
+
+  setScaleBusy(_busy) {}
 
   show() {
     this.el.hidden = false;

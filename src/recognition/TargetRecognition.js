@@ -35,6 +35,9 @@ export class TargetRecognition {
     this.video = null;
     this.active = false;
     this.lockRequested = false;
+    this.exhibitionLocked = false;
+    this.triggerConsumed = false;
+    this.detached = false;
     this.found = false;
     this.lastMatrix = null;
     this.postMatrix = new THREE.Matrix4();
@@ -151,10 +154,15 @@ export class TargetRecognition {
 
     this.video = video;
     this.lockRequested = false;
+    this.exhibitionLocked = false;
+    this.triggerConsumed = false;
+    this.detached = false;
     this.found = false;
     this.lastMatrix = null;
     this._resetRecognitionCounters();
+    debugState.mindar = 'SCANNING';
     debugState.target = 'LOST';
+    debugState.targetVisible = 'NO';
     debugState.controllerStatus = 'NOT_READY';
     debugState.controllerError = 'N/A';
     debugState.recognitionState = 'STARTING';
@@ -231,10 +239,48 @@ export class TargetRecognition {
 
   lockAfterFound() {
     this.lockRequested = true;
+    this.exhibitionLocked = true;
+    debugState.recognitionState = 'LOCKED';
+  }
+
+  /**
+   * One-shot trigger is done. Kill processVideo + worker so Exhibition
+   * no longer shares the main thread / GPU / video with MindAR.
+   */
+  detach() {
+    this.active = false;
+    this.exhibitionLocked = true;
+    this.detached = true;
+    debugState.mindar = 'STOPPED';
+    debugState.target = 'STOPPED';
+    debugState.targetVisible = 'DETACHED';
+    debugState.recognitionState = 'STOPPED';
+    debugState.controllerStatus = 'STOPPED';
+    const controller = this.controller;
+    this.controller = null;
+    if (!controller) return;
+    try {
+      controller.onUpdate = () => {};
+    } catch {
+      /* ignore */
+    }
+    try {
+      controller.stopProcessVideo();
+    } catch (err) {
+      arWarn('Failed to stop target recognition', err);
+    }
+    setTimeout(() => {
+      try {
+        controller.dispose?.();
+      } catch (err) {
+        arWarn('Failed to dispose MindAR controller', err);
+      }
+    }, 0);
   }
 
   stop() {
     this.active = false;
+    this.exhibitionLocked = this.exhibitionLocked || this.lockRequested;
     debugState.recognitionState = this.found ? 'FOUND_STOPPED' : 'STOPPED';
     try {
       this.controller?.stopProcessVideo();
@@ -244,6 +290,7 @@ export class TargetRecognition {
   }
 
   _onUpdate(data) {
+    if (this.detached || this.exhibitionLocked) return;
     if (data.type === 'processDone') {
       this.framesProcessed += 1;
       debugState.recognitionFrames = this.framesProcessed;
@@ -263,6 +310,7 @@ export class TargetRecognition {
     if (worldMatrix) {
       this.matchFrames += 1;
       debugState.matchFrames = this.matchFrames;
+      debugState.targetVisible = 'YES';
       this.lastMatrix = worldMatrix.slice();
       if (!this.found) {
         this.found = true;
@@ -271,17 +319,18 @@ export class TargetRecognition {
         debugState.lastFoundAt = formatTimestamp();
         arDiag('RECOGNITION', `FOUND at ${debugState.lastFoundAt} matchFrames=${this.matchFrames}`);
         arLog('MindAR target found');
-        this.onFound?.({
-          worldMatrix: this.lastMatrix,
-          postMatrix: this.postMatrix.clone(),
-        });
-      }
-      if (this.lockRequested) {
-        this.stop();
+        if (!this.triggerConsumed) {
+          this.triggerConsumed = true;
+          this.onFound?.({
+            worldMatrix: this.lastMatrix,
+            postMatrix: this.postMatrix.clone(),
+          });
+        }
       }
     } else {
       this.nullMatrixFrames += 1;
       debugState.nullMatrixFrames = this.nullMatrixFrames;
+      debugState.targetVisible = 'NO';
       if (this.found) {
         this.found = false;
         debugState.target = 'LOST';
@@ -289,7 +338,7 @@ export class TargetRecognition {
         debugState.lastLostAt = formatTimestamp();
         arDiag('RECOGNITION', `LOST at ${debugState.lastLostAt} nullMatrixFrames=${this.nullMatrixFrames}`);
         arLog('MindAR target lost');
-        this.onLost?.();
+        if (!this.triggerConsumed) this.onLost?.();
       }
     }
   }

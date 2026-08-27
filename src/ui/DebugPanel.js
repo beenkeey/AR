@@ -25,11 +25,37 @@ export class DebugPanel {
     this.panel.className = 'debug-panel';
     this.panel.innerHTML = `
       <div class="debug-row"><span>STATE</span><strong data-k="appState">N/A</strong></div>
-      <div class="debug-row"><span>MINDAR</span><strong data-k="target">N/A</strong></div>
-      <div class="debug-row"><span>EFFECT</span><strong data-k="effect">N/A</strong></div>
-      <div class="debug-row"><span>MODEL MODE</span><strong data-k="modelMode">N/A</strong></div>
-      <div class="debug-row"><span>MODEL UPDATES</span><strong data-k="modelTransformUpdates">N/A</strong></div>
-      <div class="debug-row"><span>CAMERA</span><strong data-k="cameraMode">N/A</strong></div>
+      <div class="debug-row"><span>MINDAR</span><strong data-k="mindar">N/A</strong></div>
+      <div class="debug-row"><span>TARGET</span><strong data-k="targetVisible">N/A</strong></div>
+      <div class="debug-row"><span>ANCHOR</span><strong data-k="anchor">N/A</strong></div>
+      <div class="debug-row"><span>CAMERA TRACKING</span><strong data-k="cameraTracking">N/A</strong></div>
+      <div class="debug-row"><span>CAMERA PROVIDER</span><strong data-k="cameraProvider">N/A</strong></div>
+      <div class="debug-row"><span>6DoF</span><strong data-k="cameraSixDof">N/A</strong></div>
+      <div class="debug-row"><span>WORLD</span><strong data-k="modelMode">N/A</strong></div>
+      <div class="debug-row"><span>MODEL TRANSFORM UPDATES</span><strong data-k="modelTransformUpdates">N/A</strong></div>
+      <div class="debug-row"><span>CAMERA POSITION</span><strong data-k="cameraWorldPosition">N/A</strong></div>
+      <div class="debug-row"><span>CAMERA ROTATION</span><strong data-k="cameraWorldRotation">N/A</strong></div>
+      <div class="debug-row"><span>FPS</span><strong data-k="renderLoopFps">N/A</strong></div>
+      <div class="debug-row"><span>FRAME COUNT</span><strong data-k="frameCount">N/A</strong></div>
+      <div class="debug-row"><span>LAST RENDER</span><strong data-k="lastRenderTimestamp">N/A</strong></div>
+      <div class="debug-row"><span>CAMERA UPDATE</span><strong data-k="cameraUpdateTimestamp">N/A</strong></div>
+      <div class="debug-row"><span>TRACKING UPDATE</span><strong data-k="trackingUpdateTimestamp">N/A</strong></div>
+      <div class="debug-row"><span>LAST VALID POSE</span><strong data-k="lastValidPose">N/A</strong></div>
+      <div class="debug-row"><span>TRACKING LOST</span><strong data-k="trackingLost">N/A</strong></div>
+      <div class="debug-row"><span>TRACKING RECOVERED</span><strong data-k="trackingRecovered">N/A</strong></div>
+      <div class="debug-row"><span>VIDEO TIME</span><strong data-k="videoCurrentTime">N/A</strong></div>
+      <div class="debug-h">APIS</div>
+      <div class="debug-row"><span>WEBXR AVAILABLE</span><strong data-k="webxrAvailable">N/A</strong></div>
+      <div class="debug-row"><span>IMMERSIVE AR</span><strong data-k="immersiveAR">N/A</strong></div>
+      <div class="debug-row"><span>DEVICE ORIENTATION</span><strong data-k="deviceOrientationAvailable">N/A</strong></div>
+      <div class="debug-row"><span>DEVICE MOTION</span><strong data-k="deviceMotionAvailable">N/A</strong></div>
+      <div class="debug-row"><span>CAMERA AVAILABLE</span><strong data-k="cameraAvailable">N/A</strong></div>
+      <div class="debug-row"><span>ORIENTATION PERMISSION</span><strong data-k="orientationPermission">N/A</strong></div>
+      <div class="debug-row"><span>MOTION PERMISSION</span><strong data-k="motionPermission">N/A</strong></div>
+      <div class="debug-h">RIG</div>
+      <div class="debug-row"><span>RIG</span><strong data-k="rigSource">N/A</strong></div>
+      <div class="debug-row"><span>TRIANGLES</span><strong data-k="rigTriangles">N/A</strong></div>
+      <div class="debug-row"><span>HEIGHT</span><strong data-k="rigHeight">N/A</strong></div>
       <div class="debug-h">SCAN</div>
       <div class="debug-row"><span>TARGET MODE</span><strong data-k="targetMode">N/A</strong></div>
       <div class="debug-row"><span>FRAMES</span><strong data-k="recognitionFrames">N/A</strong></div>

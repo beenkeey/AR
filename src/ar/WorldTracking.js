@@ -1,20 +1,35 @@
 import * as THREE from 'three';
+import { CONFIG } from '../config.js';
 import { alvaPoseToThreeCamera } from './AlvaARTracker.js';
+import { DeviceRotation } from './DeviceRotation.js';
 
 /**
  * Camera-only motion for the exhibition.
- * First pose P0 is the reference. Later: camera = cameraAtLock * inverse(P0) * P.
- * The exhibition model is never written from here.
- * Lost tracking keeps the last camera transform.
+ *
+ * Graph:
+ *   exhibitionScene
+ *     CameraRig     ← frozen exhibition start pose
+ *       camera      ← AlvaAR relative pose only (position + orientation)
+ *     ExhibitionRoot ← never written from here
+ *
+ * relative = inverse(P0) * P
+ * Lost AlvaAR keeps the last camera transform. MindAR is not used.
  */
 export class WorldTracking {
-  constructor(camera) {
+  constructor(camera, scene) {
     this.camera = camera;
+    this.scene = scene;
+    this.rig = new THREE.Group();
+    this.rig.name = 'CameraRig';
+    this.device = new DeviceRotation();
+    this.collide = null;
+
     this.enabled = false;
     this.referenceSet = false;
     this.moved = false;
     this.usingLastPose = false;
     this.lastDelta = new THREE.Vector3();
+    this.trackingActive = false;
 
     this._refInv = new THREE.Matrix4();
     this._current = new THREE.Matrix4();
@@ -27,8 +42,24 @@ export class WorldTracking {
     this._scratchVec = new THREE.Vector3();
     this._prevPos = new THREE.Vector3();
     this._one = new THREE.Vector3(1, 1, 1);
+    this._identQuat = new THREE.Quaternion();
     this._cameraAtLock = new THREE.Matrix4();
-    this._result = new THREE.Matrix4();
+    this._relPos = new THREE.Vector3();
+    this._relQuat = new THREE.Quaternion();
+    this._prevRelPos = new THREE.Vector3();
+    this._prevRelQuat = new THREE.Quaternion();
+    this._hadRelative = false;
+    this._lockLocal = new THREE.Matrix4();
+    this._targetPos = new THREE.Vector3();
+    this._holdPos = new THREE.Vector3();
+    this._targetQuat = new THREE.Quaternion();
+    this._smoothPos = new THREE.Vector3();
+    this._smoothQuat = new THREE.Quaternion();
+    this._lostQuat = new THREE.Quaternion();
+    this._baseQuat = new THREE.Quaternion();
+    this._rigInvQuat = new THREE.Quaternion();
+    this._lastNow = 0;
+    this._smoothed = false;
   }
 
   get status() {
@@ -38,39 +69,107 @@ export class WorldTracking {
     return 'TRACKING';
   }
 
+  async prepareSensors() {
+    return this.device.prepare();
+  }
+
   enable() {
     if (this.enabled) return;
     this.enabled = true;
     this.referenceSet = false;
     this.moved = false;
     this.usingLastPose = false;
+    this.trackingActive = true;
+    this._hadRelative = false;
+    this._smoothed = false;
+    this._lockLocal.identity();
     this.lastDelta.set(0, 0, 0);
-    this.camera.matrixAutoUpdate = true;
-    this.camera.updateMatrixWorld(true);
-    this._cameraAtLock.copy(this.camera.matrixWorld);
+    this._mountCamera();
+    this.device.captureReference();
+    this._baseQuat.copy(this.camera.quaternion);
+    this._lostQuat.copy(this.camera.quaternion);
+    this._targetQuat.copy(this.camera.quaternion);
   }
 
   disable() {
+    this._unmountCamera();
     this.enabled = false;
     this.referenceSet = false;
     this.moved = false;
     this.usingLastPose = false;
+    this.trackingActive = false;
+    this._hadRelative = false;
+    this._smoothed = false;
+    this._lockLocal.identity();
     this.lastDelta.set(0, 0, 0);
   }
 
-  update(pose, live) {
+  _mountCamera() {
+    const camera = this.camera;
+    camera.matrixAutoUpdate = true;
+    if (camera.parent) camera.parent.remove(camera);
+    camera.updateMatrixWorld(true);
+    this._cameraAtLock.copy(camera.matrixWorld);
+
+    if (this.rig.parent !== this.scene) this.scene.add(this.rig);
+    this.rig.matrix.copy(this._cameraAtLock);
+    this.rig.matrix.decompose(this.rig.position, this.rig.quaternion, this.rig.scale);
+    this.rig.matrixAutoUpdate = false;
+    this.rig.updateMatrixWorld(true);
+
+    this.rig.add(camera);
+    camera.position.set(0, 0, 0);
+    camera.quaternion.identity();
+    camera.scale.set(1, 1, 1);
+    camera.matrix.identity();
+    camera.matrix.decompose(camera.position, camera.quaternion, camera.scale);
+    camera.matrixAutoUpdate = false;
+    camera.updateMatrixWorld(true);
+    this._prevPos.setFromMatrixPosition(camera.matrixWorld);
+    this._smoothPos.copy(camera.position);
+    this._smoothQuat.copy(camera.quaternion);
+    this._targetPos.copy(camera.position);
+    this._holdPos.copy(camera.position);
+    this._targetQuat.copy(camera.quaternion);
+  }
+
+  _unmountCamera() {
+    const camera = this.camera;
+    camera.matrixAutoUpdate = true;
+    if (camera.parent === this.rig) this.rig.remove(camera);
+    else if (camera.parent) camera.parent.remove(camera);
+    if (this.rig.parent) this.rig.parent.remove(this.rig);
+    this.rig.matrixAutoUpdate = true;
+    this.rig.position.set(0, 0, 0);
+    this.rig.quaternion.identity();
+    this.rig.scale.set(1, 1, 1);
+    this.rig.matrix.identity();
+  }
+
+  /**
+   * AlvaAR drives camera 6DoF. ExhibitionRoot is never written.
+   * relative = inverse(P0) * P  →  camera local = relative (rig holds start pose).
+   * Lost pose keeps the last camera transform. MindAR is not used.
+   */
+  update(pose, live, now = performance.now()) {
     if (!this.enabled) {
-      this.moved = false;
       this.usingLastPose = false;
+      this.trackingActive = false;
       return false;
     }
-    if (!pose) {
-      this.moved = false;
-      this.usingLastPose = this.referenceSet;
+    this.trackingActive = true;
+    const dt = this._dt(now);
+
+    if (!live || !pose) {
+      // Rotation-only fallback. DeviceOrientation is not 6DoF and must not
+      // integrate walking. Hold last AlvaAR translation.
+      this.usingLastPose = true;
+      this.device.relative(this._scratchQuat);
+      this._targetQuat.copy(this._lostQuat).multiply(this._scratchQuat).normalize();
+      this._commitCamera(dt);
       return false;
     }
 
-    this.usingLastPose = !live;
     alvaPoseToThreeCamera(
       pose,
       this._pos,
@@ -84,26 +183,108 @@ export class WorldTracking {
     if (!this.referenceSet) {
       this._refInv.copy(this._current).invert();
       this.referenceSet = true;
-      this.camera.updateMatrixWorld(true);
-      this._cameraAtLock.copy(this.camera.matrixWorld);
-      this._prevPos.copy(this.camera.position);
+      this._hadRelative = false;
+      this.usingLastPose = false;
       this.lastDelta.set(0, 0, 0);
-      this.moved = false;
+      this._targetPos.set(0, 0, 0);
+      this._targetQuat.identity();
+      this.device.captureReference();
+      this._lostQuat.identity();
+      this._commitCamera(dt);
       return true;
     }
 
     this._relative.multiplyMatrices(this._refInv, this._current);
-    this._result.multiplyMatrices(this._cameraAtLock, this._relative);
-    this._result.decompose(this._pos, this._quat, this._scale);
+    this._relative.decompose(this._relPos, this._relQuat, this._scale);
 
-    this.camera.matrixAutoUpdate = true;
-    this.camera.position.copy(this._pos);
-    this.camera.quaternion.copy(this._quat);
-    this.camera.updateMatrixWorld(true);
+    if (this._hadRelative) {
+      const jumpPos = this._relPos.distanceTo(this._prevRelPos);
+      const jumpRot = this._relQuat.angleTo(this._prevRelQuat);
+      if (jumpPos > CONFIG.worldTracking.jumpPos || jumpRot > CONFIG.worldTracking.jumpRot) {
+        this._reanchorWithoutTeleport();
+        this._refInv.copy(this._current).invert();
+        this._hadRelative = false;
+        this.usingLastPose = true;
+        this._commitCamera(dt);
+        return false;
+      }
+      if (jumpPos < CONFIG.worldTracking.translationDeadzone) {
+        this._relPos.copy(this._prevRelPos);
+      }
+    }
+    this._hadRelative = true;
+    this._prevRelPos.copy(this._relPos);
+    this._prevRelQuat.copy(this._relQuat);
 
-    this.lastDelta.subVectors(this.camera.position, this._prevPos);
-    this.moved = this.lastDelta.lengthSq() > 1e-8;
-    this._prevPos.copy(this.camera.position);
+    const posGain = CONFIG.worldTracking.positionGain ?? CONFIG.worldTracking.walkGain ?? 1;
+    this._relPos.multiplyScalar(posGain);
+    this._targetPos.copy(this._relPos);
+    this._targetQuat.copy(this._relQuat);
+    this.usingLastPose = false;
+    this.device.captureReference();
+    this._lostQuat.copy(this._relQuat);
+    this._commitCamera(dt);
     return true;
+  }
+
+  _reanchorWithoutTeleport() {
+    const camera = this.camera;
+    camera.updateMatrixWorld(true);
+    this._cameraAtLock.copy(camera.matrixWorld);
+    this.rig.matrix.copy(this._cameraAtLock);
+    this.rig.matrix.decompose(this.rig.position, this.rig.quaternion, this.rig.scale);
+    this.rig.matrixAutoUpdate = false;
+    this.rig.updateMatrixWorld(true);
+    camera.position.set(0, 0, 0);
+    camera.quaternion.identity();
+    camera.scale.set(1, 1, 1);
+    this._targetPos.set(0, 0, 0);
+    this._targetQuat.identity();
+    this._smoothPos.copy(this._targetPos);
+    this._smoothQuat.copy(this._targetQuat);
+  }
+
+  _dt(now) {
+    const prev = this._lastNow;
+    this._lastNow = now;
+    if (!prev) return 1 / 60;
+    return Math.min(0.05, Math.max(0.001, (now - prev) / 1000));
+  }
+
+  _commitCamera(dt) {
+    const camera = this.camera;
+    if (!this._smoothed) {
+      this._smoothPos.copy(this._targetPos);
+      this._smoothQuat.copy(this._targetQuat);
+      this._smoothed = true;
+    } else {
+      const posK = 1 - Math.exp(-CONFIG.cameraSmoothing.position * 12 * dt);
+      const rotK = 1 - Math.exp(-CONFIG.cameraSmoothing.rotation * 12 * dt);
+      this._smoothPos.lerp(this._targetPos, THREE.MathUtils.clamp(posK, 0, 1));
+      this._smoothQuat.slerp(this._targetQuat, THREE.MathUtils.clamp(rotK, 0, 1));
+    }
+
+    camera.position.copy(this._smoothPos);
+    camera.quaternion.copy(this._smoothQuat);
+    camera.scale.set(1, 1, 1);
+    camera.matrixAutoUpdate = false;
+    camera.updateMatrix();
+    camera.updateMatrixWorld(true);
+
+    if (this.collide) {
+      camera.getWorldPosition(this._scratchVec);
+      this.collide(this._scratchVec);
+      this._scratchMat.copy(this.rig.matrixWorld).invert();
+      this._scratchVec.applyMatrix4(this._scratchMat);
+      camera.position.copy(this._scratchVec);
+      this._smoothPos.copy(camera.position);
+      camera.updateMatrix();
+      camera.updateMatrixWorld(true);
+    }
+
+    this._scratchVec.setFromMatrixPosition(camera.matrixWorld);
+    this.lastDelta.subVectors(this._scratchVec, this._prevPos);
+    if (this.lastDelta.lengthSq() > 1e-8) this.moved = true;
+    this._prevPos.copy(this._scratchVec);
   }
 }

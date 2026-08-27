@@ -48,7 +48,7 @@ export class HyperSpeedEffect {
     };
   }
 
-  play({ durationMs = 1100, onPeak } = {}) {
+  play({ durationMs = 1900, onPrepare, onPeak, prepareAt = 0.07, peakAt = 0.74 } = {}) {
     this.stop();
     this.running = true;
     this.resize();
@@ -59,6 +59,7 @@ export class HyperSpeedEffect {
     this.canvas.style.opacity = '1';
 
     const start = performance.now();
+    let prepared = false;
     let peaked = false;
 
     return new Promise((resolve) => {
@@ -68,7 +69,11 @@ export class HyperSpeedEffect {
           return;
         }
         const t = Math.min(1, (now - start) / durationMs);
-        if (!peaked && t >= 0.48) {
+        if (!prepared && t >= prepareAt) {
+          prepared = true;
+          onPrepare?.();
+        }
+        if (!peaked && t >= peakAt) {
           peaked = true;
           onPeak?.();
         }

@@ -35,6 +35,7 @@ export class AlvaARTracker {
     this.slamStatus = 'INITIALIZING';
     this._hadTracking = false;
     this._errorLogged = false;
+    // Exhibition camera is written only by WorldTracking (relative to P0).
     this.applyToCamera = false;
     this.lastPose = null;
     this.framesProcessed = 0;
@@ -164,6 +165,7 @@ export class AlvaARTracker {
       }
     } else {
       this.hasPose = false;
+      // Keep lastPose. Lost tracking must not stop the render loop or reset the camera.
       this._setStatus(this._hadTracking ? 'LOST' : 'INITIALIZING');
       try {
         this.featurePoints = this.alva.getFramePoints?.() || [];

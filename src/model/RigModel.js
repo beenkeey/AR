@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CONFIG } from '../config.js';
 import { arLog } from '../logger.js';
+import { debugState } from '../debugState.js';
+import { createArcticDrillingRig, measureRig } from '../assets/ArcticDrillingRig.js';
 
 export class RigModel {
   constructor() {
@@ -9,9 +11,17 @@ export class RigModel {
     this.root.name = 'RigModel';
     this.root.visible = false;
     this.loaded = false;
+    this.assetKind = 'N/A';
   }
 
   async load() {
+    this.installArctic();
+    this.syncAssetDebug();
+    this.loaded = true;
+    return this.root;
+  }
+
+  async loadGlb() {
     const loader = new GLTFLoader();
     const gltf = await loader.loadAsync(CONFIG.model.url);
     const model = gltf.scene;
@@ -36,9 +46,17 @@ export class RigModel {
     wrapper.add(model);
     this.applyConfig(wrapper);
     this.root.add(wrapper);
-    this.loaded = true;
-    arLog('Rig model loaded');
-    return this.root;
+    arLog('Rig GLB loaded');
+  }
+
+  installArctic() {
+    const rig = createArcticDrillingRig();
+    this.applyConfig(rig);
+    this.root.add(rig);
+    this.assetKind = 'ARCTIC PROCEDURAL';
+    arLog(
+      `Arctic procedural rig triangles=${rig.userData.triangles} height=${rig.userData.height.toFixed(2)}m`,
+    );
   }
 
   applyConfig(target = this.root) {
@@ -52,6 +70,20 @@ export class RigModel {
     target.position.set(offset[0], offset[1], offset[2]);
   }
 
+  syncAssetDebug() {
+    const arctic = this.root.getObjectByName('ArcticDrillingRig');
+    if (arctic) {
+      debugState.rigSource = 'ARCTIC PROCEDURAL';
+      debugState.rigTriangles = String(arctic.userData.triangles ?? 0);
+      debugState.rigHeight = `${Number(arctic.userData.height || 0).toFixed(2)} m`;
+      return;
+    }
+    const stats = measureRig(this.root);
+    debugState.rigSource = this.assetKind;
+    debugState.rigTriangles = String(stats.triangles);
+    debugState.rigHeight = `${stats.height.toFixed(2)} m`;
+  }
+
   show() {
     this.root.visible = true;
   }
@@ -62,15 +94,5 @@ export class RigModel {
 }
 
 export function createFallbackRig() {
-  const group = new THREE.Group();
-  const steel = new THREE.MeshStandardMaterial({ color: 0x8a9098, metalness: 0.4, roughness: 0.4 });
-  const accent = new THREE.MeshStandardMaterial({ color: 0xdb731e, metalness: 0.2, roughness: 0.5 });
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.16, 2.2), new THREE.MeshStandardMaterial({ color: 0x33363c }));
-  deck.position.y = 0.08;
-  const tower = new THREE.Mesh(new THREE.BoxGeometry(0.35, 3.6, 0.35), steel);
-  tower.position.y = 2.0;
-  const crown = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.8), accent);
-  crown.position.y = 3.9;
-  group.add(deck, tower, crown);
-  return group;
+  return createArcticDrillingRig();
 }

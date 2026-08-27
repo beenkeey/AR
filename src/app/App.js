@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { CONFIG, DEBUG, MESSAGES, WORLD_TRACKING_ENABLED } from '../config.js';
 import { arDiag, arError, arLog, arWarn } from '../logger.js';
-import { debugState, formatEuler, formatScalar, formatVec3 } from '../debugState.js';
+import { debugState, formatEuler, formatScalar, formatTimestamp, formatVec3 } from '../debugState.js';
 import { AppState, STATES } from './AppState.js';
 import { ARSession } from '../ar/ARSession.js';
 import { TrackingManager } from '../ar/TrackingManager.js';
 import { WorldTracking } from '../ar/WorldTracking.js';
+import { SessionAnchor } from '../ar/SessionAnchor.js';
+import { probeCameraApis, requestSensorPermissions } from '../ar/camera/probeCameraApis.js';
 import { ExhibitionScene } from '../ar/ExhibitionScene.js';
 import { TargetRecognition } from '../recognition/TargetRecognition.js';
 import { RigModel, createFallbackRig } from '../model/RigModel.js';
@@ -22,9 +24,14 @@ export class App {
     this.state = new AppState(STATES.SCAN);
     this.session = new ARSession(root);
     this.exhibition = new ExhibitionScene();
-    this.worldTracking = new WorldTracking(this.session.camera);
     this.rig = new RigModel();
     this.hyperspace = new HyperSpeedEffect(root);
+    this.anchor = new SessionAnchor();
+    this.worldTracking = new WorldTracking(this.session.camera, this.exhibition.scene);
+    this.worldTracking.collide = (pos) => this.exhibition.resolveCamera(pos);
+    this.tracking = new TrackingManager({
+      camera: this.session.camera,
+    });
     this.recognition = new TargetRecognition({
       onFound: (data) => this.handleTargetFound(data),
       onLost: () => this.handleTargetLost(),
@@ -35,21 +42,17 @@ export class App {
         }
       },
     });
-    this.tracking = new TrackingManager({
-      camera: this.session.camera,
-      onStatus: (status) => {
-        debugState.tracking = status;
-      },
-    });
 
     this.loading = new LoadingUI();
     this.scanUI = new ScanUI();
-    this.arUI = new ARUI({ onBack: () => this.backToScan() });
+    this.arUI = new ARUI({
+      onBack: () => this.backToScan(),
+    });
     this.errorUI = new ErrorUI();
     this.debugPanel = new DebugPanel();
     this.debugPanel.onSimulate(() => this.simulateTargetFound());
     this.debugPanel.onReset(() => this.resetTest());
-    this.debugPanel.onToggleWorldTracking(() => this.toggleWorldTracking());
+    this.debugPanel.onToggleWorldTracking(() => this.toggleCamera());
 
     root.appendChild(this.loading.el);
     root.appendChild(this.scanUI.el);
@@ -61,10 +64,15 @@ export class App {
     this.capabilities = null;
     this.sessionReady = false;
     this.transitioning = false;
-    this.worldTrackingWanted = WORLD_TRACKING_ENABLED;
+    this.cameraWanted = WORLD_TRACKING_ENABLED;
+    this.slamReady = false;
+    this.probe = null;
+    this._slamMs = 0;
+    this._slamSkip = false;
     this._scratchPos = new THREE.Vector3();
     this._scratchQuat = new THREE.Quaternion();
     this._scratchScale = new THREE.Vector3();
+    this._camWorld = new THREE.Vector3();
     this._euler = new THREE.Euler();
 
     this.resetDebugPlacement();
@@ -84,10 +92,12 @@ export class App {
       try {
         await this.rig.load();
       } catch (err) {
-        arWarn('GLB load failed, using fallback mesh', err);
+        arWarn('Model load failed, using Arctic procedural rig', err);
         this.rig.root.add(createFallbackRig());
         this.rig.applyConfig();
+        this.rig.assetKind = 'ARCTIC PROCEDURAL';
         this.rig.loaded = true;
+        this.rig.syncAssetDebug();
       }
       this.exhibition.attach(this.rig.root);
       this.rig.hide();
@@ -103,9 +113,12 @@ export class App {
 
     this.loading.show(MESSAGES.tapToStart);
     this.root.classList.add('awaiting-gesture');
+    this.probe = await probeCameraApis();
     const start = async () => {
       this.root.removeEventListener('pointerdown', start);
       this.root.classList.remove('awaiting-gesture');
+      this.probe = await requestSensorPermissions(this.probe);
+      await this.worldTracking.prepareSensors();
       await this.startSession();
     };
     this.root.addEventListener('pointerdown', start, { once: true });
@@ -123,10 +136,29 @@ export class App {
       );
       debugState.videoAttrSize = `${video.width}x${video.height}`;
       debugState.videoRealSize = `${video.videoWidth}x${video.videoHeight}`;
-      await this.tracking.initialize(this.capabilities, video.videoWidth, video.videoHeight);
-      this.tracking.start(video);
+
+      try {
+        await this.tracking.initialize(
+          this.capabilities,
+          video.videoWidth || 640,
+          video.videoHeight || 480,
+        );
+        this.slamReady = true;
+        debugState.alvaInstance = 'CREATED';
+        debugState.alvaStatus = 'READY';
+        arLog('AlvaAR WASM ready (idle until FOUND)');
+      } catch (err) {
+        this.slamReady = false;
+        debugState.alvaStatus = 'UNAVAILABLE';
+        debugState.alvaInstance = 'NOT CREATED';
+        debugState.cameraSixDof = 'NO';
+        arWarn('AlvaAR init failed — exhibition look is gyro-only, not 6DoF', err);
+      }
+
       await this.recognition.start(video);
+      debugState.mindar = 'SCANNING';
       this.session.startLoop((now) => this.onFrame(now));
+      this.session.onAfterRender = (now) => this.afterRender(now);
       this.sessionReady = true;
       if (!this.placementStarted) this.enterScan();
       this.loading.hide();
@@ -144,32 +176,71 @@ export class App {
     this.placementStarted = false;
     this.transitioning = false;
     this.worldTracking.disable();
+    this.tracking.stop();
+    this.anchor.clear();
     this.exhibition.hide();
+    this.arUI.setScaleMode('huge');
     this.hyperspace.stop();
     this.resetCameraToOrigin();
     this.session.showLiveCamera();
     this.resetDebugPlacement();
+    debugState.mindar = 'SCANNING';
     this.scanUI.setTitle(MESSAGES.scan);
     this.state.set(STATES.SCAN);
   }
 
   onFrame(now) {
-    const { width, height } = this.session.size;
-    this.tracking.update(now, width, height);
-    if (this.state.is(STATES.EXHIBITION)) this.updateCameraTracking();
+    if (this.state.is(STATES.EXHIBITION) || this.state.is(STATES.TRANSITION)) {
+      if (this.worldTracking.enabled) {
+        const pose = this.tracking.getCameraPose();
+        const live = Boolean(this.tracking.hasPose);
+        this.worldTracking.update(pose, live, now);
+      }
+      this.exhibition.tick(now);
+    }
+    if (this.exhibition.locked) this.exhibition.enforceLock();
     this.updateDebug();
   }
 
-  handleTargetFound(_data) {
-    if (!this.state.is(STATES.SCAN) || this.placementStarted || this.transitioning) return;
+  afterRender(now) {
+    if (!this.slamReady) return;
+    if (!this.recognition.detached) return;
+    if (!this.tracking.tracker?.running) return;
+    if (this._slamSkip) {
+      this._slamSkip = false;
+      return;
+    }
+    try {
+      const video = this.session.video;
+      const t0 = performance.now();
+      this.tracking.update(now, video.videoWidth || 640, video.videoHeight || 480);
+      this._slamMs = performance.now() - t0;
+      this._slamSkip = this._slamMs > 80;
+    } catch (err) {
+      arWarn('AlvaAR update failed', err);
+    }
+  }
+
+  handleTargetFound(data) {
+    if (this.placementStarted || this.transitioning) return;
+    if (!this.state.is(STATES.SCAN)) return;
     this.placementStarted = true;
+    this.anchor.capture({
+      worldMatrix: data?.worldMatrix,
+      camera: this.session.camera,
+    });
     this.recognition.lockAfterFound();
-    this.recognition.stop();
-    arLog('MindAR FOUND — starting exhibition transition');
+    this.recognition.detach();
+    debugState.mindar = 'STOPPED';
+    debugState.target = 'STOPPED';
+    debugState.targetVisible = 'DETACHED';
+    if (this.slamReady) this.tracking.start(this.session.video);
+    arLog('MindAR FOUND — snapshot anchor locked, recognition detached, AlvaAR owns camera');
     this.beginTransition();
   }
 
   handleTargetLost() {
+    if (this.placementStarted) return;
     if (!this.state.is(STATES.SCAN)) return;
   }
 
@@ -195,30 +266,35 @@ export class App {
     if (!this.placementStarted) return;
     if (!this.exhibition.locked) this.prepareExhibition();
     await this.exhibition.fadeIn(CONFIG.exhibition.fadeMs);
-    this.syncWorldTracking();
     debugState.effect = 'NONE';
-    debugState.modelMode = 'STATIC';
+    debugState.modelMode = 'WORLD LOCKED';
     debugState.modelVisible = 'VISIBLE';
     debugState.placementStatus = 'FIXED';
     this.state.set(STATES.EXHIBITION);
     this.transitioning = false;
-    arLog('EXHIBITION — model static, camera tracking only');
+    this.arUI.setScaleMode('huge');
+    arLog('AR_VIEW — frozen exhibition, MindAR off, AlvaAR camera tracking');
   }
 
   prepareExhibition() {
+    if (this.exhibition.locked) return;
+    this.session.showExhibition(this.exhibition.scene);
     this.resetCameraForExhibition();
-    this.session.showBlackExhibition(this.exhibition.scene);
     this.exhibition.placeStatic();
+    this.anchor.bindExhibition(this.exhibition.anchor);
+    if (this.cameraWanted) this.worldTracking.enable();
     debugState.placementStatus = 'FIXED';
     debugState.placementMode = 'EXHIBITION';
     debugState.modelTransformUpdates = this.exhibition.transformUpdates;
-    debugState.modelMode = 'STATIC';
-    arLog('Exhibition model placed and locked');
+    debugState.modelMode = 'WORLD LOCKED';
+    debugState.anchor = 'LOCKED';
+    arLog('Exhibition model placed and world-locked');
   }
 
   resetCameraToOrigin() {
     const camera = this.session.camera;
     camera.matrixAutoUpdate = true;
+    if (camera.parent) camera.parent.remove(camera);
     camera.position.set(0, 0, 0);
     camera.quaternion.identity();
     camera.scale.set(1, 1, 1);
@@ -228,49 +304,28 @@ export class App {
   resetCameraForExhibition() {
     const camera = this.session.camera;
     camera.matrixAutoUpdate = true;
+    if (camera.parent) camera.parent.remove(camera);
     camera.position.set(0, CONFIG.exhibition.eyeHeight, 0);
-    camera.lookAt(0, EXHIBITION_LOOK_Y, -CONFIG.exhibition.distance);
+    camera.lookAt(0, CONFIG.exhibition.lookY, -CONFIG.exhibition.distance);
+    camera.scale.set(1, 1, 1);
     camera.updateMatrixWorld(true);
   }
 
-  updateCameraTracking() {
-    if (!this.worldTrackingWanted) {
-      debugState.worldTracking = 'OFF';
-      debugState.cameraMode = 'LOCKED';
-      return;
-    }
-    if (!this.worldTracking.enabled) return;
-    const live = Boolean(this.tracking.hasPose);
-    const pose = this.tracking.getCameraPose();
-    debugState.cameraPoseValid = live ? 'VALID' : (pose ? 'LAST POSE' : 'INVALID');
-    this.worldTracking.update(pose, live);
-    debugState.cameraMode = this.worldTracking.status;
-  }
-
-  syncWorldTracking() {
-    if (!this.worldTrackingWanted) {
-      this.worldTracking.disable();
-      debugState.worldTracking = 'OFF';
-      debugState.cameraMode = 'LOCKED';
-      return;
-    }
-    this.worldTracking.enable();
-    debugState.worldTracking = this.worldTracking.status;
-    debugState.cameraMode = this.worldTracking.status;
-  }
-
-  toggleWorldTracking() {
-    this.worldTrackingWanted = !this.worldTrackingWanted;
-    if (this.state.is(STATES.EXHIBITION) && this.worldTrackingWanted) {
+  async toggleCamera() {
+    this.cameraWanted = !this.cameraWanted;
+    if (this.state.is(STATES.EXHIBITION) && this.cameraWanted) {
       this.worldTracking.enable();
-      arLog('World tracking ON');
+      if (this.slamReady && !this.tracking.tracker?.running) this.tracking.start(this.session.video);
+      arLog('Exhibition camera ON');
     } else {
       this.worldTracking.disable();
       if (this.state.is(STATES.EXHIBITION)) this.resetCameraForExhibition();
-      arLog('World tracking OFF');
+      arLog('Exhibition camera OFF');
     }
-    debugState.worldTracking = this.worldTrackingWanted ? this.worldTracking.status : 'OFF';
-    this.debugPanel.setWorldTrackingLabel(this.worldTrackingWanted);
+    debugState.worldTracking = this.cameraWanted
+      ? (this.worldTracking.enabled ? 'ACTIVE' : 'INACTIVE')
+      : 'OFF';
+    this.debugPanel.setWorldTrackingLabel(this.cameraWanted);
     if (DEBUG) this.debugPanel.update();
   }
 
@@ -288,12 +343,21 @@ export class App {
     this.transitioning = false;
     this.hyperspace.stop();
     this.worldTracking.disable();
+    this.tracking.stop();
+    try {
+      await this.tracking.reset();
+    } catch (err) {
+      arWarn('AlvaAR reset failed', err);
+    }
+    this.anchor.clear();
     this.exhibition.hide();
+    this.arUI.setScaleMode('huge');
     this.resetCameraToOrigin();
+    await this.session.ensureCamera();
     this.session.showLiveCamera();
     this.resetDebugPlacement();
+    debugState.mindar = 'SCANNING';
     debugState.target = 'LOST';
-    await this.tracking.reset();
     this.scanUI.setTitle(MESSAGES.scan);
     this.state.set(STATES.SCAN);
     try {
@@ -317,7 +381,7 @@ export class App {
     debugState.modelMode = 'HIDDEN';
     debugState.effect = 'NONE';
     debugState.modelTransformUpdates = 0;
-    debugState.worldTracking = this.worldTrackingWanted ? 'INACTIVE' : 'OFF';
+    debugState.worldTracking = this.cameraWanted ? 'INACTIVE' : 'OFF';
     debugState.cameraPoseValid = 'INVALID';
     debugState.cameraMode = 'SCAN';
     debugState.referencePose = 'NOT SET';
@@ -331,6 +395,19 @@ export class App {
     debugState.modelWorldPosition = 'N/A';
     debugState.modelWorldScale = 'N/A';
     debugState.modelCameraDistance = 'N/A';
+    debugState.scaleMode = 'huge';
+    debugState.targetVisible = 'NO';
+    debugState.cameraGain = 'N/A';
+    debugState.cameraTrackingActive = 'NO';
+    debugState.renderLoopFps = 'N/A';
+    debugState.lastRenderTimestamp = 'N/A';
+    debugState.alvaStatus = this.slamReady ? 'READY' : 'OFF';
+    debugState.alvaInstance = this.slamReady ? 'CREATED' : 'NOT CREATED';
+    debugState.cameraProvider = 'NONE';
+    debugState.cameraSixDof = 'NO';
+    debugState.anchor = 'NONE';
+    debugState.mindar = 'SCANNING';
+    debugState.cameraTracking = 'OFF';
   }
 
   updateDebug() {
@@ -346,40 +423,63 @@ export class App {
       debugState.cameraStreamActive = stream ? String(Boolean(stream.active) || live) : 'false';
     }
     debugState.fps = Number.isFinite(this.session.fps) ? String(this.session.fps) : 'N/A';
-    const tracker = this.tracking.tracker;
-    if (!tracker) {
-      debugState.alvaStatus = 'N/A';
-      debugState.alvaInstance = 'NOT CREATED';
+    debugState.renderLoopFps = debugState.fps;
+    debugState.lastRenderTimestamp = formatTimestamp();
+    debugState.alvaFrames = this.tracking.tracker?.framesProcessed ?? 0;
+
+    const exhibition = this.state.is(STATES.EXHIBITION) || this.state.is(STATES.TRANSITION);
+    if (this.recognition.detached || this.recognition.exhibitionLocked || exhibition) {
+      debugState.mindar = 'STOPPED';
+      debugState.target = 'STOPPED';
+      debugState.targetVisible = 'DETACHED';
+      debugState.recognitionState = 'STOPPED';
     } else {
-      debugState.alvaInstance = tracker.alva ? 'CREATED' : 'NOT CREATED';
-      debugState.alvaStatus = tracker.slamStatus || 'INITIALIZING';
-      debugState.alvaFrames = tracker.framesProcessed ?? 0;
+      debugState.mindar = this.recognition.active ? 'SCANNING' : debugState.mindar;
+      debugState.targetVisible = this.recognition.found ? 'YES' : 'NO';
     }
-    debugState.cameraTracking = this.state.is(STATES.EXHIBITION)
-      ? this.worldTracking.status
-      : debugState.alvaStatus;
-    debugState.worldTracking = this.worldTrackingWanted ? this.worldTracking.status : 'OFF';
-    debugState.referencePose = this.worldTracking.referenceSet ? 'SET' : 'NOT SET';
-    debugState.cameraPoseValid = this.tracking.hasPose ? 'VALID' : (this.tracking.getCameraPose() ? 'LAST POSE' : 'INVALID');
-    debugState.cameraMoved = this.worldTracking.moved ? 'YES' : 'NO';
-    debugState.poseDelta = this.worldTracking.referenceSet ? formatVec3(this.worldTracking.lastDelta) : 'N/A';
-    debugState.cameraMode = this.state.is(STATES.EXHIBITION) ? this.worldTracking.status : 'SCAN';
+
+    if (this.worldTracking.enabled) {
+      const slamLive = Boolean(this.tracking.hasPose);
+      debugState.cameraProvider = this.slamReady ? 'alva' : 'gyro-look';
+      debugState.cameraSixDof = slamLive ? 'YES' : 'NO';
+      debugState.cameraGain = slamLive ? 'alva relative pose' : 'gyro look (3DoF)';
+      debugState.cameraTrackingActive = 'YES';
+      debugState.cameraTracking = 'ACTIVE';
+      debugState.worldTracking = slamLive ? 'ACTIVE' : this.worldTracking.status;
+      debugState.referencePose = this.worldTracking.referenceSet ? 'SET' : 'WAITING';
+      debugState.cameraPoseValid = slamLive ? 'ALVAAR' : (this.worldTracking.usingLastPose ? 'LAST+GYRO' : 'GYRO');
+      debugState.cameraMoved = this.worldTracking.moved ? 'YES' : 'NO';
+      debugState.poseDelta = formatVec3(this.worldTracking.lastDelta);
+      debugState.cameraMode = this.worldTracking.status;
+      debugState.alvaStatus = this.tracking.tracker?.slamStatus || debugState.alvaStatus;
+    } else {
+      debugState.cameraProvider = 'NONE';
+      debugState.cameraSixDof = 'NO';
+      debugState.cameraTrackingActive = 'NO';
+      debugState.cameraTracking = 'OFF';
+      debugState.cameraGain = 'N/A';
+      debugState.worldTracking = this.cameraWanted ? 'INACTIVE' : 'OFF';
+      debugState.cameraPoseValid = 'INVALID';
+      debugState.cameraMoved = 'NO';
+      debugState.poseDelta = 'N/A';
+      debugState.cameraMode = this.state.is(STATES.SCAN) ? 'SCAN' : debugState.cameraMode;
+    }
 
     this.session.camera.updateMatrixWorld(true);
     this.session.camera.matrixWorld.decompose(this._scratchPos, this._scratchQuat, this._scratchScale);
-    debugState.cameraPosition = formatVec3(this.session.camera.position);
+    debugState.cameraPosition = formatVec3(this._scratchPos);
     debugState.cameraWorldPosition = formatVec3(this._scratchPos);
-    this._euler.setFromQuaternion(this.session.camera.quaternion, 'YXZ');
-    debugState.cameraRotation = formatEuler(this._euler);
     this._euler.setFromQuaternion(this._scratchQuat, 'YXZ');
+    debugState.cameraRotation = formatEuler(this._euler);
     debugState.cameraWorldRotation = formatEuler(this._euler);
 
     debugState.modelVisible = this.rig.root.visible ? 'VISIBLE' : 'HIDDEN';
-    debugState.modelMode = this.exhibition.locked ? 'STATIC' : debugState.modelMode;
+    debugState.modelMode = this.exhibition.locked ? 'WORLD LOCKED' : debugState.modelMode;
     debugState.modelTransformUpdates = this.exhibition.transformUpdates;
+    debugState.scaleMode = this.exhibition.scaleMode;
+    debugState.anchor = this.anchor.locked ? 'LOCKED' : 'NONE';
 
     if (this.exhibition.locked) {
-      this.exhibition.anchor.updateMatrixWorld(true);
       this.exhibition.anchor.matrixWorld.decompose(this._scratchPos, this._scratchQuat, this._scratchScale);
       debugState.modelX = formatScalar(this._scratchPos.x);
       debugState.modelY = formatScalar(this._scratchPos.y);
@@ -389,7 +489,8 @@ export class App {
       this._euler.setFromQuaternion(this._scratchQuat, 'YXZ');
       debugState.modelRotation = formatEuler(this._euler);
       debugState.modelScale = formatScalar(this._scratchScale.y);
-      debugState.modelCameraDistance = formatScalar(this.session.camera.position.distanceTo(this._scratchPos));
+      this.session.camera.getWorldPosition(this._camWorld);
+      debugState.modelCameraDistance = formatScalar(this._camWorld.distanceTo(this._scratchPos));
     }
     this.debugPanel.update();
   }
@@ -401,5 +502,3 @@ export class App {
     this.errorUI.show(message);
   }
 }
-
-const EXHIBITION_LOOK_Y = CONFIG.exhibition.modelScale * 0.4;

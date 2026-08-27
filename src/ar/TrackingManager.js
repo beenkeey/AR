@@ -39,7 +39,7 @@ export class TrackingManager {
 
   start(video) {
     this.required = true;
-    this.tracker.start(video);
+    this.tracker?.start(video);
   }
 
   markWorldTrackingIndependent() {
