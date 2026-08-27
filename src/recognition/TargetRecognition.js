@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { CONFIG } from '../config.js';
+import { assetUrl, CONFIG } from '../config.js';
 import { arDiag, arError, arLog, arWarn } from '../logger.js';
 import { bufferByteLength, debugState, formatTimestamp } from '../debugState.js';
 
 async function loadMindImage() {
   if (!window.MINDAR?.IMAGE?.Controller) {
-    const url = new URL('/vendor/mindar-image.prod.js', window.location.origin).href;
+    const url = new URL(assetUrl('vendor/mindar-image.prod.js'), window.location.origin).href;
     await import(/* @vite-ignore */ url);
   }
   const api = window.MINDAR?.IMAGE;

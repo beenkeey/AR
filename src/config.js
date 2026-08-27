@@ -1,5 +1,10 @@
 const params = new URLSearchParams(window.location.search);
 
+/** Public-folder URL that respects Vite `base` (GitHub Pages `/AR/`). */
+export function assetUrl(path) {
+  return `${import.meta.env.BASE_URL}${String(path).replace(/^\//, '')}`;
+}
+
 function isWeakDevice() {
   const cores = navigator.hardwareConcurrency || 4;
   const memory = navigator.deviceMemory || 4;
@@ -20,7 +25,7 @@ const useTestTarget = targetParam === 'test';
 
 export const CONFIG = {
   model: {
-    url: '/assets/models/rig.glb',
+    url: assetUrl('assets/models/rig.glb'),
     scale: 0.28,
     rotationDeg: [0, 0, 0],
     offset: [0, 0, 0],
@@ -28,9 +33,9 @@ export const CONFIG = {
   target: {
     mode: usePrecompiledTarget ? 'PRECOMPILED' : 'RUNTIME',
     imageUrl: (usePrecompiledTarget || useTestTarget)
-      ? '/assets/targets/mindar-card-test.png'
-      : '/assets/targets/rig-target.png',
-    mindUrl: usePrecompiledTarget ? '/assets/targets/mindar-card-test.mind' : null,
+      ? assetUrl('assets/targets/mindar-card-test.png')
+      : assetUrl('assets/targets/rig-target.png'),
+    mindUrl: usePrecompiledTarget ? assetUrl('assets/targets/mindar-card-test.mind') : null,
     physicalWidthMeters: 0.2,
   },
   camera: {

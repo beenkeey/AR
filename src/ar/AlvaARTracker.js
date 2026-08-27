@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG } from '../config.js';
+import { assetUrl, CONFIG } from '../config.js';
 import { arError, arLog, arWarn } from '../logger.js';
 
 /**
@@ -51,7 +51,7 @@ export class AlvaARTracker {
 
   async initialize(width, height) {
     try {
-      const url = new URL('/vendor/alva_ar.js', window.location.origin).href;
+      const url = new URL(assetUrl('vendor/alva_ar.js'), window.location.origin).href;
       const { AlvaAR } = await import(/* @vite-ignore */ url);
       this._setProcessSize(width, height);
       this.alva = await AlvaAR.Initialize(this.processCanvas.width, this.processCanvas.height);
