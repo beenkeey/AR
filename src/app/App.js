@@ -331,7 +331,7 @@ export class App {
     camera.matrixAutoUpdate = true;
     if (camera.parent) camera.parent.remove(camera);
     camera.position.set(0, CONFIG.exhibition.eyeHeight, 0);
-    camera.lookAt(0, CONFIG.exhibition.lookY, -CONFIG.exhibition.distance);
+    camera.lookAt(0, CONFIG.exhibition.lookY, -CONFIG.exhibition.lookDistance);
     camera.scale.set(1, 1, 1);
     camera.updateMatrixWorld(true);
   }

@@ -74,9 +74,10 @@ export const CONFIG = {
     modelScale: EXHIBITION_MODEL_SCALE,
     hugeHeight: EXHIBITION_MODEL_SCALE,
     overviewHeight: 2.35,
-    distance: 8,
-    eyeHeight: 1.6,
-    lookY: 9,
+    distance: 50,
+    eyeHeight: 1.22,
+    lookY: 0.05,
+    lookDistance: 2.4,
     fadeMs: 480,
     scaleMs: 1000,
     cameraFov: 66,
@@ -92,6 +93,20 @@ export const CONFIG = {
     // looking at the tower. Three.js +Y is CCW, so clockwise = −Y.
     // Model +X (yellow / equipment / right side) then faces the camera.
     startYaw: -Math.PI / 2,
+    heli: {
+      scale: 3.5,
+      duration: 52,
+      waypoints: [
+        [24, 66, -22],
+        [16, 72, -40],
+        [-10, 68, -34],
+        [-22, 75, -56],
+        [6, 80, -72],
+        [28, 69, -60],
+        [32, 65, -36],
+      ],
+    },
+    bus: { x: 22, y: 0, z: -10, yaw: Math.PI / 2, scale: 1 },
   },
   hyperspace: {
     durationMs: 1900,

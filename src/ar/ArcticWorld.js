@@ -1,17 +1,17 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
+import { createUTairHelicopter } from '../assets/UTairHelicopter.js';
+import { createCrewBus } from '../assets/CrewBus.js';
 
 const WEAK = CONFIG.performance.weak;
 const FOG = 0xa9c7dc;
 const _heliFwd = new THREE.Vector3();
 const _heliLook = new THREE.Vector3();
 const _heliTargetQ = new THREE.Quaternion();
-/** Fuselage nose is local +X; Object3D.lookAt aims +Z, so yaw the inner mesh. */
-const HELI_NOSE_YAW = -Math.PI / 2;
 
 /**
  * Arctic exhibition world around ExhibitionRoot. Never parents the rig.
- * Daytime field: pale sky, snow, distant peaks, far helis.
+ * Daytime field: pale sky, snow, distant peaks, UTair heli, crew bus.
  */
 export class ArcticWorld {
   constructor(scene) {
@@ -29,7 +29,8 @@ export class ArcticWorld {
     this.scene.add(this._sky());
     this.scene.add(this._ground());
     this._addLandscape();
-    this._addHelicopters();
+    this._addHelicopter();
+    this._addBus();
   }
 
   _sky() {
@@ -103,7 +104,7 @@ export class ArcticWorld {
 
     const pad = new THREE.Mesh(new THREE.CircleGeometry(22, 28), packed);
     pad.rotation.x = -Math.PI / 2;
-    pad.position.set(0, 0.03, -8);
+    pad.position.set(0, 0.03, -CONFIG.exhibition.distance * 0.55);
     group.add(pad);
 
     const ring = new THREE.Mesh(new THREE.RingGeometry(42, 78, 36), ice);
@@ -279,24 +280,46 @@ export class ArcticWorld {
     }
   }
 
-  _addHelicopters() {
-    const count = WEAK ? 1 : 2;
-    const paths = [
-      { radius: 52, height: 64, speed: 0.045, phase: 0.4 },
-      { radius: 64, height: 76, speed: -0.032, phase: 2.1 },
-    ];
-    for (let i = 0; i < count; i += 1) {
-      const heli = createHelicopter();
-      this.scene.add(heli.group);
-      this.helis.push({
-        ...paths[i],
-        ...heli,
-        _q: new THREE.Quaternion(),
-        _prev: new THREE.Vector3(),
-        _aimed: false,
-        _hasPrev: false,
-      });
-    }
+  _addHelicopter() {
+    const pose = CONFIG.exhibition.heli;
+    const heli = createUTairHelicopter();
+    heli.scale.setScalar(pose.scale);
+    this.scene.add(heli);
+    const pts = pose.waypoints.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
+    const flyer = {
+      group: heli,
+      rotor: heli.userData.rotor,
+      tail: heli.userData.tail,
+      points: pts,
+      duration: pose.duration,
+      _q: new THREE.Quaternion(),
+      _prev: new THREE.Vector3(),
+      _pos: new THREE.Vector3(),
+      _next: new THREE.Vector3(),
+      _aimed: false,
+      _hasPrev: false,
+    };
+    this._setHeliPose(flyer, 0);
+    this.helis.push(flyer);
+  }
+
+  _addBus() {
+    const pose = CONFIG.exhibition.bus;
+    const bus = createCrewBus();
+    bus.position.set(pose.x, pose.y, pose.z);
+    bus.rotation.y = pose.yaw;
+    bus.scale.setScalar(pose.scale);
+    this.scene.add(bus);
+  }
+
+  _setHeliPose(heli, timeSec) {
+    sampleClosedSpline(heli.points, timeSec / heli.duration, heli._pos);
+    const wobble = timeSec;
+    heli.group.position.set(
+      heli._pos.x + Math.sin(wobble * 0.73) * 0.45,
+      heli._pos.y + Math.sin(wobble * 0.91) * 0.7,
+      heli._pos.z + Math.cos(wobble * 0.61) * 0.4,
+    );
   }
 
   tick(now) {
@@ -305,19 +328,12 @@ export class ArcticWorld {
       if (mat.uniforms?.uTime) mat.uniforms.uTime.value = this._time;
     }
     for (const heli of this.helis) {
-      const a = this._time * heli.speed + heli.phase;
-      const x = Math.cos(a) * heli.radius;
-      const z = Math.sin(a) * heli.radius - 10;
-      heli.group.position.set(x, heli.height, z);
-
-      if (heli._hasPrev) {
-        _heliFwd.subVectors(heli.group.position, heli._prev);
-      } else {
-        _heliFwd.set(-Math.sin(a) * heli.speed, 0, Math.cos(a) * heli.speed);
-      }
+      this._setHeliPose(heli, this._time);
+      const dt = 0.35 / heli.duration;
+      sampleClosedSpline(heli.points, (this._time / heli.duration) + dt, heli._next);
+      _heliFwd.subVectors(heli._next, heli._pos);
       heli._prev.copy(heli.group.position);
       heli._hasPrev = true;
-      _heliFwd.y = 0;
 
       if (_heliFwd.lengthSq() > 1e-8) {
         _heliLook.copy(heli.group.position).add(_heliFwd);
@@ -327,15 +343,40 @@ export class ArcticWorld {
           heli._q.copy(_heliTargetQ);
           heli._aimed = true;
         } else {
-          heli._q.slerp(_heliTargetQ, 0.18);
+          heli._q.slerp(_heliTargetQ, 0.1);
         }
         heli.group.quaternion.copy(heli._q);
       }
 
-      heli.rotor.rotation.y += 0.62;
-      heli.tail.rotation.x += 0.95;
+      if (heli.rotor) heli.rotor.rotation.y += 0.62;
+      if (heli.tail) heli.tail.rotation.x += 0.95;
     }
   }
+}
+
+function sampleClosedSpline(points, u, out) {
+  const n = points.length;
+  const t = ((u % 1) + 1) % 1;
+  const scaled = t * n;
+  const i = Math.floor(scaled) % n;
+  const local = scaled - Math.floor(scaled);
+  const p0 = points[(i - 1 + n) % n];
+  const p1 = points[i];
+  const p2 = points[(i + 1) % n];
+  const p3 = points[(i + 2) % n];
+  catmullRom(p0, p1, p2, p3, local, out);
+  return out;
+}
+
+function catmullRom(p0, p1, p2, p3, t, out) {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  out.set(
+    0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+    0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+    0.5 * ((2 * p1.z) + (-p0.z + p2.z) * t + (2 * p0.z - 5 * p1.z + 4 * p2.z - p3.z) * t2 + (-p0.z + 3 * p1.z - 3 * p2.z + p3.z) * t3),
+  );
+  return out;
 }
 
 function addPeak(group, x, z, height, radius, rock, snow) {
@@ -349,97 +390,4 @@ function addPeak(group, x, z, height, radius, rock, snow) {
   cap.position.set(x, height - capH * 0.42, z);
   cap.rotation.y = body.rotation.y + 0.15;
   group.add(cap);
-}
-
-function createHelicopter() {
-  const group = new THREE.Group();
-  group.name = 'Helicopter';
-  const inner = new THREE.Group();
-  inner.rotation.y = HELI_NOSE_YAW;
-  group.add(inner);
-
-  const paint = new THREE.MeshStandardMaterial({ color: 0x4a534c, metalness: 0.28, roughness: 0.58 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x24282c, metalness: 0.45, roughness: 0.42 });
-  const glass = new THREE.MeshStandardMaterial({ color: 0x1b2a34, metalness: 0.7, roughness: 0.16 });
-  const stripe = new THREE.MeshStandardMaterial({ color: 0x8a6a22, metalness: 0.2, roughness: 0.55 });
-  const rotorMat = new THREE.MeshStandardMaterial({ color: 0x1a1c1e, metalness: 0.35, roughness: 0.5 });
-
-  const fuselage = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.92, 0.95), paint);
-  const belly = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.22, 0.82), dark);
-  belly.position.set(-0.05, -0.52, 0);
-  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.62, 0.78), glass);
-  nose.position.set(1.28, 0.08, 0);
-  const chin = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.28, 0.7), paint);
-  chin.position.set(1.32, -0.28, 0);
-  const cabinWinL = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.28, 0.04), glass);
-  cabinWinL.position.set(0.15, 0.18, 0.48);
-  const cabinWinR = cabinWinL.clone();
-  cabinWinR.position.z = -0.48;
-  const door = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.05), dark);
-  door.position.set(-0.35, -0.05, 0.48);
-  const boom = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.2, 0.2), paint);
-  boom.position.set(-2.05, 0.22, 0);
-  boom.rotation.z = 0.08;
-  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.78, 0.42), paint);
-  fin.position.set(-3.12, 0.55, 0);
-  const stab = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.85), paint);
-  stab.position.set(-3.05, 0.28, 0);
-  const engineL = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.32, 0.32), dark);
-  engineL.position.set(0.15, 0.58, 0.28);
-  const engineR = engineL.clone();
-  engineR.position.z = -0.28;
-  const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.35, 6), dark);
-  exhaust.position.set(-0.35, 0.68, 0);
-  exhaust.rotation.z = Math.PI / 2;
-  const band = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.94, 0.97), stripe);
-  band.position.set(0.55, 0, 0);
-
-  const gearF = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.16, 8), dark);
-  gearF.position.set(1.05, -0.72, 0);
-  gearF.rotation.z = Math.PI / 2;
-  const gearL = gearF.clone();
-  gearL.position.set(-0.55, -0.72, 0.42);
-  const gearR = gearF.clone();
-  gearR.position.set(-0.55, -0.72, -0.42);
-  const strutF = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.28, 0.06), dark);
-  strutF.position.set(1.05, -0.58, 0);
-  const strutL = strutF.clone();
-  strutL.position.set(-0.55, -0.58, 0.42);
-  const strutR = strutF.clone();
-  strutR.position.set(-0.55, -0.58, -0.42);
-
-  const rotor = new THREE.Group();
-  rotor.position.set(0.12, 0.82, 0);
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.1, 8), rotorMat);
-  rotor.add(hub);
-  for (let i = 0; i < 5; i += 1) {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.035, 0.16), rotorMat);
-    blade.position.x = 1.55;
-    const pivot = new THREE.Group();
-    pivot.rotation.y = (i / 5) * Math.PI * 2;
-    pivot.add(blade);
-    rotor.add(pivot);
-  }
-
-  const tail = new THREE.Group();
-  tail.position.set(-3.18, 0.72, 0.22);
-  const tailHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.08, 6), rotorMat);
-  tailHub.rotation.x = Math.PI / 2;
-  tail.add(tailHub);
-  for (let i = 0; i < 3; i += 1) {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.03, 0.07), rotorMat);
-    blade.position.x = 0.32;
-    const pivot = new THREE.Group();
-    pivot.rotation.z = (i / 3) * Math.PI * 2;
-    pivot.add(blade);
-    tail.add(pivot);
-  }
-
-  inner.add(
-    fuselage, belly, nose, chin, cabinWinL, cabinWinR, door, boom, fin, stab,
-    engineL, engineR, exhaust, band, gearF, gearL, gearR, strutF, strutL, strutR,
-    rotor, tail,
-  );
-  group.scale.setScalar(1.05);
-  return { group, rotor, tail };
 }
