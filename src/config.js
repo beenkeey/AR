@@ -88,8 +88,10 @@ export const CONFIG = {
     walkAccel: 0.85,
     walkAccelForce: 2.4,
     walkDamp: 3.4,
-    // Previous yaw + 90° clockwise (Three.js Y: clockwise from above = −Y).
-    startYaw: 0,
+    // Clockwise 90° from the current facing, as seen from above / from the child
+    // looking at the tower. Three.js +Y is CCW, so clockwise = −Y.
+    // Model +X (yellow / equipment / right side) then faces the camera.
+    startYaw: -Math.PI / 2,
   },
   hyperspace: {
     durationMs: 1900,

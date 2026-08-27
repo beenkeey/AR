@@ -237,7 +237,6 @@ function buildGreyBase(parent, grey, greyDark, greyPanel, yellow, glass, steel, 
   addRailRect(yBox, -5.8, -0.2, skidH + wingH, 0.0, 3.9, 1.0, 0.05, 6);
   addStairs(yBox, 5.55, 0, 1.65, skidH + 1.55, 7, 1);
   addStairs(yBox, -5.15, 0, 2.7, skidH + wingH, 6, -1);
-  addStairs(yBox, 3.4, skidH + hallH - 0.15, -5.7, skidH + hallH + 1.05, 5, -1);
 
   yBox.box(-5.4, skidH + 1.35, 3.55, 1.35, 0.08, 1.2);
   addRailRect(yBox, -6.05, -4.75, skidH + 1.35, 3.0, 4.15, 0.9, 0.045, 4);
@@ -271,8 +270,7 @@ function buildYellowHub(parent, yellow, yellowDark, black, yBox, yDark, tx, tz) 
   yBox.box(tx + 2.15, colY0 + colH + 0.12, tz - 0.05, 1.7, 0.08, 1.5);
   addRailRect(yBox, tx + 1.4, tx + 2.9, colY0 + colH + 0.12, tz - 0.75, tz + 0.7, 0.95, 0.05, 4);
 
-  addStairs(yBox, tx + 2.7, y0, tz + 1.85, y0 + 2.2, 6, 1);
-  addStairs(yBox, tx + 2.55, y0 + 2.15, tz + 1.85, y0 + h, 5, 1);
+  addStairs(yBox, tx + 2.7, y0, tz + 1.85, y0 + 2.2, 6, -1);
 
   boxAt(parent, black, tx + 2.7, y0 + h + 0.55, tz + 1.15, 0.85, 0.95, 0.7);
   boxAt(parent, black, tx + 1.55, y0 + h + 0.48, tz - 1.35, 0.7, 0.8, 0.65);
@@ -317,13 +315,13 @@ function buildRedMast(parent, red, redDark, black, ribBox, tx, tz) {
 function buildMastAccess(yBox, yDark, tx, tz) {
   const y0 = MAST_Y0;
   const y1 = MAST_Y1;
-  const landings = [0.12, 0.28, 0.44, 0.60, 0.76, 0.90];
+  const landings = [0.28, 0.55, 0.82];
   const lx = tx + 1.15;
   const lz = tz + 1.05;
 
   yBox.beam(lx, y0 + 0.2, lz, lx, y1 - 0.15, lz, 0.07);
   yBox.beam(lx + 0.42, y0 + 0.2, lz, lx + 0.42, y1 - 0.15, lz, 0.07);
-  const rungs = WEAK ? 28 : 42;
+  const rungs = WEAK ? 14 : 20;
   for (let i = 0; i < rungs; i += 1) {
     const y = THREE.MathUtils.lerp(y0 + 0.25, y1 - 0.2, i / (rungs - 1));
     yBox.box(lx + 0.21, y, lz, 0.5, 0.045, 0.05);
@@ -359,7 +357,7 @@ function buildEquipmentDeck(parent, grey, greyDark, navy, navyBox, yBox, tx, tz)
     navyBox.box(x, yy + 0.52, z, 0.88, 0.08, 0.72);
   }
 
-  addStairs(yBox, tx + 4.85, 0, tz + 2.55, y + 0.12, 7, 1);
+  addStairs(yBox, tx + 4.85, 0, tz + 2.55, y + 0.12, 7, -1);
 }
 
 function addRailRect(batch, x0, x1, y, z0, z1, height, thickness, posts) {
