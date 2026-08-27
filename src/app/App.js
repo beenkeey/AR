@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { CONFIG, DEBUG, MESSAGES, WORLD_TRACKING_ENABLED } from '../config.js';
 import { arDiag, arError, arLog, arWarn } from '../logger.js';
-import { debugState, formatEuler, formatScalar, formatTimestamp, formatVec3 } from '../debugState.js';
+import { debugState, formatAgeSince, formatEuler, formatScalar, formatTimestamp, formatVec3 } from '../debugState.js';
+import { paintFreezeHud, recordLastError, startWatchdog } from '../debugWatchdog.js';
 import { AppState, STATES } from './AppState.js';
 import { ARSession } from '../ar/ARSession.js';
 import { TrackingManager } from '../ar/TrackingManager.js';
+import { alvaPoseToThreeCamera } from '../ar/AlvaARTracker.js';
 import { WorldTracking } from '../ar/WorldTracking.js';
 import { SessionAnchor } from '../ar/SessionAnchor.js';
 import { probeCameraApis, requestSensorPermissions } from '../ar/camera/probeCameraApis.js';
@@ -56,7 +58,8 @@ export class App {
 
     this.freezeHud = document.createElement('pre');
     this.freezeHud.className = 'freeze-hud';
-    this.freezeHud.hidden = true;
+    this.freezeHud.hidden = !DEBUG;
+    if (DEBUG) startWatchdog(this.freezeHud);
 
     root.appendChild(this.loading.el);
     root.appendChild(this.scanUI.el);
@@ -81,14 +84,18 @@ export class App {
     this._euler = new THREE.Euler();
     this._hudLastNow = 0;
     this._hudLastCam = '';
+    this._rawPos = new THREE.Vector3();
+    this._rawQuat = new THREE.Quaternion();
+    this._rawScratchQuat = new THREE.Quaternion();
+    this._rawMat = new THREE.Matrix4();
+    this._rawVec = new THREE.Vector3();
 
     this.resetDebugPlacement();
     this.state.subscribe((value) => {
       debugState.appState = value;
       this.scanUI.el.hidden = !this.sessionReady || value !== STATES.SCAN;
       this.arUI.el.hidden = value !== STATES.EXHIBITION;
-      this.freezeHud.hidden =
-        !DEBUG || (value !== STATES.EXHIBITION && value !== STATES.TRANSITION);
+      this.freezeHud.hidden = !DEBUG;
     });
   }
 
@@ -127,7 +134,7 @@ export class App {
       this.root.removeEventListener('pointerdown', start);
       this.root.classList.remove('awaiting-gesture');
       this.probe = await requestSensorPermissions(this.probe);
-      await this.worldTracking.prepareSensors();
+      await this.worldTracking.prepareSensors(this.probe.orientationPermission);
       await this.startSession();
     };
     this.root.addEventListener('pointerdown', start, { once: true });
@@ -231,6 +238,7 @@ export class App {
         debugState.trackingUpdateTimestamp = formatTimestamp();
       } catch (err) {
         arWarn('AlvaAR update failed', err);
+        recordLastError(err, 'AlvaAR.update');
       } finally {
         this._slamBusy = false;
       }
@@ -249,6 +257,7 @@ export class App {
     this.recognition.detach();
     debugState.mindar = 'STOPPED';
     debugState.target = 'DETACHED';
+    debugState.targetState = 'DETACHED';
     debugState.targetVisible = 'DETACHED';
     if (this.slamReady) this.tracking.start(this.session.video);
     arLog('MindAR FOUND — snapshot anchor locked, recognition detached, AlvaAR owns camera');
@@ -350,6 +359,12 @@ export class App {
     if (!this.state.is(STATES.SCAN) || this.placementStarted) return;
     arLog('Debug: simulating target found');
     debugState.target = 'FOUND';
+    debugState.targetState = 'FOUND';
+    debugState.lastFoundAt = formatTimestamp();
+    debugState.targetFoundAtMs = performance.now();
+    debugState.targetFoundCount += 1;
+    debugState.targetEventCount += 1;
+    debugState.lastTargetEvent = `FOUND ${debugState.lastFoundAt} (simulate)`;
     this.handleTargetFound({});
   }
 
@@ -448,14 +463,22 @@ export class App {
     debugState.frameCount = String(this.session.frameTotal);
     if (this.recognition.detached || this.recognition.exhibitionLocked || exhibition) {
       debugState.mindar = 'STOPPED';
+      debugState.targetState = 'DETACHED';
       debugState.target = 'DETACHED';
       debugState.targetVisible = 'DETACHED';
       debugState.recognitionState = 'STOPPED';
     } else {
       debugState.mindar = this.recognition.active ? 'LIVE' : 'STOPPED';
-      debugState.target = 'ATTACHED';
-      debugState.targetVisible = 'ATTACHED';
+      debugState.targetState = this.recognition.found ? 'FOUND' : 'LOST';
+      debugState.target = debugState.targetState;
+      debugState.targetVisible = this.recognition.found ? 'YES' : 'NO';
     }
+    debugState.timeSinceTargetFound = formatAgeSince(debugState.targetFoundAtMs);
+    debugState.timeSinceTargetLost = formatAgeSince(debugState.targetLostAtMs);
+
+    const gyro = this.worldTracking.device;
+    debugState.gyroSample = gyro.hasSample ? 'YES' : 'NO';
+    debugState.gyroAge = formatAgeSince(gyro.lastSampleAt);
 
     if (this.worldTracking.enabled) {
       const slamLive = Boolean(this.tracking.hasPose);
@@ -492,9 +515,24 @@ export class App {
     this.session.camera.matrixWorld.decompose(this._scratchPos, this._scratchQuat, this._scratchScale);
     debugState.cameraPosition = formatVec3(this._scratchPos);
     debugState.cameraWorldPosition = formatVec3(this._scratchPos);
+    debugState.finalPosition = debugState.cameraWorldPosition;
     this._euler.setFromQuaternion(this._scratchQuat, 'YXZ');
     debugState.cameraRotation = formatEuler(this._euler);
     debugState.cameraWorldRotation = formatEuler(this._euler);
+    const rawPose = this.tracking.getCameraPose();
+    if (rawPose) {
+      alvaPoseToThreeCamera(
+        rawPose,
+        this._rawPos,
+        this._rawQuat,
+        this._rawMat,
+        this._rawScratchQuat,
+        this._rawVec,
+      );
+      debugState.rawPosition = formatVec3(this._rawPos);
+    } else {
+      debugState.rawPosition = 'N/A';
+    }
 
     debugState.modelVisible = this.rig.root.visible ? 'VISIBLE' : 'HIDDEN';
     debugState.modelMode = this.exhibition.locked ? 'WORLD LOCKED' : debugState.modelMode;
@@ -516,32 +554,11 @@ export class App {
       debugState.modelCameraDistance = formatScalar(this._camWorld.distanceTo(this._scratchPos));
     }
     this.debugPanel.update();
+    paintFreezeHud();
   }
 
-  _updateFreezeHud(now) {
-    if (this.freezeHud.hidden) return;
-    const exhibitionState =
-      this.state.is(STATES.EXHIBITION) || this.state.is(STATES.TRANSITION)
-        ? 'AR_VIEW'
-        : this.state.is(STATES.SCAN)
-          ? 'SCAN'
-          : this.state.value;
-    const gap = this._hudLastNow ? Math.round(now - this._hudLastNow) : 0;
-    this._hudLastNow = now;
-    debugState.frameCount = String(this.session.frameTotal);
-    debugState.lastRenderTimestamp = formatTimestamp();
-    debugState.renderLoopFps = Number.isFinite(this.session.fps) ? String(this.session.fps) : 'N/A';
-    this.freezeHud.textContent = [
-      `STATE ${exhibitionState}`,
-      `MINDAR ${this.recognition.detached ? 'STOPPED' : 'LIVE'}`,
-      `TARGET ${this.recognition.detached ? 'DETACHED' : 'ATTACHED'}`,
-      `ALVA ${this.tracking.tracker?.slamStatus || 'OFF'}`,
-      `FRAME ${this.session.frameTotal}  gap ${gap}ms`,
-      `FPS ${this.session.fps || 0}`,
-      `CAMERA ${this.worldTracking.usingLastPose || !this.tracking.hasPose ? 'HOLD' : 'ACTIVE'}`,
-      `POSE ${this.tracking.hasPose ? 'VALID' : 'INVALID'}`,
-      `MODEL TRANSFORM UPDATES ${this.exhibition.transformUpdates}`,
-    ].join('\n');
+  _updateFreezeHud(_now) {
+    paintFreezeHud();
   }
 
   fail(message) {

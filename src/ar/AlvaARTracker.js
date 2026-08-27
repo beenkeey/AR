@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import { assetUrl, CONFIG } from '../config.js';
+import { assetUrl, CONFIG, DEBUG } from '../config.js';
 import { arError, arLog, arWarn } from '../logger.js';
+import { debugState, formatTimestamp } from '../debugState.js';
+import { recordLastError } from '../debugWatchdog.js';
 
 /**
  * AlvaAR findCameraPose returns a column-major 4x4 camera-to-world matrix
@@ -124,11 +126,18 @@ export class AlvaARTracker {
     const ch = this.processCanvas.height;
     if (vw < 2 || vh < 2 || cw < 16 || ch < 16 || !this.processCtx) return false;
 
-    this.processCtx.drawImage(this.video, 0, 0, cw, ch);
-    const frame = this.processCtx.getImageData(0, 0, cw, ch);
-
+    if (DEBUG) {
+      debugState.alvaCalls += 1;
+      debugState.alvaBusy = 'YES';
+      debugState.alvaBusySince = performance.now();
+      debugState.alvaBusyAge = '0.00s';
+      debugState.lastAlvaStart = formatTimestamp();
+    }
+    const t0 = performance.now();
     let pose = null;
     try {
+      this.processCtx.drawImage(this.video, 0, 0, cw, ch);
+      const frame = this.processCtx.getImageData(0, 0, cw, ch);
       pose = this.alva.findCameraPose(frame);
     } catch (err) {
       this.hasPose = false;
@@ -136,8 +145,19 @@ export class AlvaARTracker {
         this._errorLogged = true;
         arError('SLAM pose failed', err);
       }
+      if (DEBUG) recordLastError(err, 'findCameraPose');
       this._setStatus('ERROR');
       return false;
+    } finally {
+      if (DEBUG) {
+        const dur = performance.now() - t0;
+        debugState.alvaBusy = 'NO';
+        debugState.alvaBusyAge = '0.00s';
+        debugState.lastAlvaEnd = formatTimestamp();
+        debugState.lastAlvaDuration = `${dur.toFixed(1)}ms`;
+        debugState.maxAlvaDuration = `${Math.max(Number.parseFloat(debugState.maxAlvaDuration) || 0, dur).toFixed(1)}ms`;
+        debugState.alvaLastResult = pose ? 'POSE' : 'NULL';
+      }
     }
 
     if (pose) {

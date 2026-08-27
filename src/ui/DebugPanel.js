@@ -24,6 +24,48 @@ export class DebugPanel {
     this.panel = document.createElement('div');
     this.panel.className = 'debug-panel';
     this.panel.innerHTML = `
+      <div class="debug-h">PIPELINE</div>
+      <div class="debug-row"><span>HEARTBEAT</span><strong data-k="heartbeat">N/A</strong></div>
+      <div class="debug-row"><span>FRAME</span><strong data-k="frameCount">N/A</strong></div>
+      <div class="debug-row"><span>FPS</span><strong data-k="renderLoopFps">N/A</strong></div>
+      <div class="debug-row"><span>VIDEO TIME</span><strong data-k="videoCurrentTime">N/A</strong></div>
+      <div class="debug-row"><span>VIDEO FRAME</span><strong data-k="videoFrameCount">N/A</strong></div>
+      <div class="debug-row"><span>VIDEO PAUSED</span><strong data-k="videoPaused">N/A</strong></div>
+      <div class="debug-row"><span>VIDEO ENDED</span><strong data-k="videoEnded">N/A</strong></div>
+      <div class="debug-row"><span>VIDEO READY</span><strong data-k="videoReady">N/A</strong></div>
+      <div class="debug-row"><span>TARGET STATE</span><strong data-k="targetState">N/A</strong></div>
+      <div class="debug-row"><span>TARGET FOUND</span><strong data-k="targetFoundCount">N/A</strong></div>
+      <div class="debug-row"><span>TARGET LOST</span><strong data-k="targetLostCount">N/A</strong></div>
+      <div class="debug-row"><span>TARGET EVENT COUNT</span><strong data-k="targetEventCount">N/A</strong></div>
+      <div class="debug-row"><span>LAST TARGET EVENT</span><strong data-k="lastTargetEvent">N/A</strong></div>
+      <div class="debug-row"><span>TIME SINCE TARGET FOUND</span><strong data-k="timeSinceTargetFound">N/A</strong></div>
+      <div class="debug-row"><span>TIME SINCE TARGET LOST</span><strong data-k="timeSinceTargetLost">N/A</strong></div>
+      <div class="debug-row"><span>ALVA STATE</span><strong data-k="alvaStatus">N/A</strong></div>
+      <div class="debug-row"><span>ALVA LAST RESULT</span><strong data-k="alvaLastResult">N/A</strong></div>
+      <div class="debug-row"><span>ALVA BUSY</span><strong data-k="alvaBusy">N/A</strong></div>
+      <div class="debug-row"><span>BUSY AGE</span><strong data-k="alvaBusyAge">N/A</strong></div>
+      <div class="debug-row"><span>ALVA CALLS</span><strong data-k="alvaCalls">N/A</strong></div>
+      <div class="debug-row"><span>LAST ALVA START</span><strong data-k="lastAlvaStart">N/A</strong></div>
+      <div class="debug-row"><span>LAST ALVA END</span><strong data-k="lastAlvaEnd">N/A</strong></div>
+      <div class="debug-row"><span>LAST ALVA DURATION</span><strong data-k="lastAlvaDuration">N/A</strong></div>
+      <div class="debug-row"><span>MAX ALVA DURATION</span><strong data-k="maxAlvaDuration">N/A</strong></div>
+      <div class="debug-row"><span>POSE VALID</span><strong data-k="cameraPoseValid">N/A</strong></div>
+      <div class="debug-row"><span>CAMERA POSITION</span><strong data-k="cameraWorldPosition">N/A</strong></div>
+      <div class="debug-row"><span>CAMERA ROTATION</span><strong data-k="cameraWorldRotation">N/A</strong></div>
+      <div class="debug-row"><span>RAW POSITION</span><strong data-k="rawPosition">N/A</strong></div>
+      <div class="debug-row"><span>FINAL POSITION</span><strong data-k="finalPosition">N/A</strong></div>
+      <div class="debug-row"><span>GYRO SAMPLE</span><strong data-k="gyroSample">N/A</strong></div>
+      <div class="debug-row"><span>GYRO AGE</span><strong data-k="gyroAge">N/A</strong></div>
+      <div class="debug-row"><span>GYRO PERMISSION</span><strong data-k="gyroPermission">N/A</strong></div>
+      <div class="debug-row"><span>GYRO LISTENER</span><strong data-k="gyroListener">N/A</strong></div>
+      <div class="debug-row"><span>GYRO EVENT</span><strong data-k="gyroEvent">N/A</strong></div>
+      <div class="debug-row"><span>LAST RENDER</span><strong data-k="lastRender">N/A</strong></div>
+      <div class="debug-row"><span>LAST ONFRAME</span><strong data-k="lastOnFrame">N/A</strong></div>
+      <div class="debug-row"><span>RENDER ENTER</span><strong data-k="renderEnter">N/A</strong></div>
+      <div class="debug-row"><span>RENDER EXIT</span><strong data-k="renderExit">N/A</strong></div>
+      <div class="debug-row"><span>MODEL TRANSFORM UPDATES</span><strong data-k="modelTransformUpdates">N/A</strong></div>
+      <div class="debug-row"><span>LAST ERROR</span><strong data-k="lastError">N/A</strong></div>
+      <div class="debug-h">SESSION</div>
       <div class="debug-row"><span>STATE</span><strong data-k="appState">N/A</strong></div>
       <div class="debug-row"><span>MINDAR</span><strong data-k="mindar">N/A</strong></div>
       <div class="debug-row"><span>TARGET</span><strong data-k="targetVisible">N/A</strong></div>
@@ -34,18 +76,9 @@ export class DebugPanel {
       <div class="debug-row"><span>CAMERA PROVIDER</span><strong data-k="cameraProvider">N/A</strong></div>
       <div class="debug-row"><span>6DoF</span><strong data-k="cameraSixDof">N/A</strong></div>
       <div class="debug-row"><span>WORLD</span><strong data-k="modelMode">N/A</strong></div>
-      <div class="debug-row"><span>MODEL TRANSFORM UPDATES</span><strong data-k="modelTransformUpdates">N/A</strong></div>
-      <div class="debug-row"><span>CAMERA POSITION</span><strong data-k="cameraWorldPosition">N/A</strong></div>
-      <div class="debug-row"><span>CAMERA ROTATION</span><strong data-k="cameraWorldRotation">N/A</strong></div>
-      <div class="debug-row"><span>FPS</span><strong data-k="renderLoopFps">N/A</strong></div>
-      <div class="debug-row"><span>FRAME COUNT</span><strong data-k="frameCount">N/A</strong></div>
-      <div class="debug-row"><span>LAST RENDER</span><strong data-k="lastRenderTimestamp">N/A</strong></div>
-      <div class="debug-row"><span>CAMERA UPDATE</span><strong data-k="cameraUpdateTimestamp">N/A</strong></div>
-      <div class="debug-row"><span>TRACKING UPDATE</span><strong data-k="trackingUpdateTimestamp">N/A</strong></div>
       <div class="debug-row"><span>LAST VALID POSE</span><strong data-k="lastValidPose">N/A</strong></div>
       <div class="debug-row"><span>TRACKING LOST</span><strong data-k="trackingLost">N/A</strong></div>
       <div class="debug-row"><span>TRACKING RECOVERED</span><strong data-k="trackingRecovered">N/A</strong></div>
-      <div class="debug-row"><span>VIDEO TIME</span><strong data-k="videoCurrentTime">N/A</strong></div>
       <div class="debug-h">APIS</div>
       <div class="debug-row"><span>WEBXR AVAILABLE</span><strong data-k="webxrAvailable">N/A</strong></div>
       <div class="debug-row"><span>IMMERSIVE AR</span><strong data-k="immersiveAR">N/A</strong></div>

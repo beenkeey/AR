@@ -1,7 +1,8 @@
-import { MESSAGES } from './config.js';
+import { DEBUG, MESSAGES } from './config.js';
 import { arError } from './logger.js';
 import { probeCapabilities } from './capabilities.js';
 import { App } from './app/App.js';
+import { recordLastError } from './debugWatchdog.js';
 
 function mount() {
   const root = document.getElementById('app');
@@ -9,11 +10,13 @@ function mount() {
 
   window.addEventListener('error', (event) => {
     arError('Unhandled error', event.error || event.message);
-    app.fail(MESSAGES.genericError);
+    recordLastError(event.error || event.message, 'window.error');
+    if (!DEBUG) app.fail(MESSAGES.genericError);
   });
   window.addEventListener('unhandledrejection', (event) => {
     arError('Unhandled rejection', event.reason);
-    app.fail(MESSAGES.genericError);
+    recordLastError(event.reason, 'unhandledrejection');
+    if (!DEBUG) app.fail(MESSAGES.genericError);
   });
 
   return app;

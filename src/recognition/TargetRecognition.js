@@ -56,8 +56,17 @@ export class TargetRecognition {
     debugState.matchFrames = 0;
     debugState.nullMatrixFrames = 0;
     debugState.recognitionState = 'IDLE';
+    debugState.targetState = 'LOST';
+    debugState.targetFoundCount = 0;
+    debugState.targetLostCount = 0;
+    debugState.targetEventCount = 0;
+    debugState.lastTargetEvent = 'NONE';
     debugState.lastFoundAt = 'N/A';
     debugState.lastLostAt = 'N/A';
+    debugState.targetFoundAtMs = null;
+    debugState.targetLostAtMs = null;
+    debugState.timeSinceTargetFound = 'N/A';
+    debugState.timeSinceTargetLost = 'N/A';
   }
 
   _syncRecognitionDebug() {
@@ -66,6 +75,7 @@ export class TargetRecognition {
     debugState.matchFrames = this.matchFrames;
     debugState.nullMatrixFrames = this.nullMatrixFrames;
     debugState.target = this.found ? 'FOUND' : 'LOST';
+    if (!this.detached) debugState.targetState = debugState.target;
   }
 
   async prepare() {
@@ -162,6 +172,7 @@ export class TargetRecognition {
     this._resetRecognitionCounters();
     debugState.mindar = 'SCANNING';
     debugState.target = 'LOST';
+    debugState.targetState = 'LOST';
     debugState.targetVisible = 'NO';
     debugState.controllerStatus = 'NOT_READY';
     debugState.controllerError = 'N/A';
@@ -253,6 +264,7 @@ export class TargetRecognition {
     this.detached = true;
     debugState.mindar = 'STOPPED';
     debugState.target = 'DETACHED';
+    debugState.targetState = 'DETACHED';
     debugState.targetVisible = 'DETACHED';
     debugState.recognitionState = 'STOPPED';
     debugState.controllerStatus = 'STOPPED';
@@ -315,8 +327,14 @@ export class TargetRecognition {
       if (!this.found) {
         this.found = true;
         debugState.target = 'FOUND';
+        debugState.targetState = 'FOUND';
         debugState.recognitionState = 'FOUND';
         debugState.lastFoundAt = formatTimestamp();
+        debugState.targetFoundAtMs = performance.now();
+        debugState.targetFoundCount += 1;
+        debugState.targetEventCount += 1;
+        debugState.lastTargetEvent = `FOUND ${debugState.lastFoundAt}`;
+        debugState.timeSinceTargetFound = '0.00s';
         arDiag('RECOGNITION', `FOUND at ${debugState.lastFoundAt} matchFrames=${this.matchFrames}`);
         arLog('MindAR target found');
         if (!this.triggerConsumed) {
@@ -334,8 +352,14 @@ export class TargetRecognition {
       if (this.found) {
         this.found = false;
         debugState.target = 'LOST';
+        debugState.targetState = 'LOST';
         debugState.recognitionState = 'LOST';
         debugState.lastLostAt = formatTimestamp();
+        debugState.targetLostAtMs = performance.now();
+        debugState.targetLostCount += 1;
+        debugState.targetEventCount += 1;
+        debugState.lastTargetEvent = `LOST ${debugState.lastLostAt}`;
+        debugState.timeSinceTargetLost = '0.00s';
         arDiag('RECOGNITION', `LOST at ${debugState.lastLostAt} nullMatrixFrames=${this.nullMatrixFrames}`);
         arLog('MindAR target lost');
         if (!this.triggerConsumed) this.onLost?.();

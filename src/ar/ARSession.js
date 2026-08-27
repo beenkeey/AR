@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import { CONFIG } from '../config.js';
+import { CONFIG, DEBUG } from '../config.js';
 import { arDiag, arLog } from '../logger.js';
+import { debugState, formatTimestamp } from '../debugState.js';
+import { recordLastError } from '../debugWatchdog.js';
 
 export class ARSession {
   constructor(container) {
@@ -45,6 +47,8 @@ export class ARSession {
     this.fps = 0;
     this.lastRenderAt = 0;
     this.projectionLocked = false;
+    this.videoFrameCount = 0;
+    this._rvfcArmed = false;
     this._onResize = () => this.resize();
   }
 
@@ -111,6 +115,7 @@ export class ARSession {
     await waitForVideo(this.video);
     applyMindARVideoSize(this.video);
     this.resize();
+    this._armVideoFrames();
     arLog('Session started');
     return this.video;
   }
@@ -134,10 +139,55 @@ export class ARSession {
       this._frame = 0;
       this._fpsLast = now;
     }
-    this.onFrame?.(now);
-    this.renderer.render(this.activeScene, this.camera);
+    if (DEBUG) this._sampleVideoDebug();
+    try {
+      this.onFrame?.(now);
+      if (DEBUG) debugState.lastOnFrame = formatTimestamp();
+    } catch (err) {
+      if (DEBUG) recordLastError(err, 'onFrame');
+      else throw err;
+    }
+    if (DEBUG) debugState.renderEnter = formatTimestamp();
+    try {
+      this.renderer.render(this.activeScene, this.camera);
+      if (DEBUG) {
+        debugState.renderExit = formatTimestamp();
+        debugState.lastRender = debugState.renderExit;
+      }
+    } catch (err) {
+      if (DEBUG) recordLastError(err, 'render');
+      else throw err;
+    }
     // SLAM / getImageData after paint so a slow findCameraPose cannot freeze the picture.
     this.onAfterRender?.(now);
+  }
+
+  _sampleVideoDebug() {
+    const video = this.video;
+    debugState.videoCurrentTime = Number.isFinite(video.currentTime)
+      ? video.currentTime.toFixed(2)
+      : 'N/A';
+    debugState.videoPaused = video.paused ? 'YES' : 'NO';
+    debugState.videoEnded = video.ended ? 'YES' : 'NO';
+    debugState.videoReady = String(video.readyState);
+    debugState.videoFrameCount = this.videoFrameCount;
+    if (typeof video.requestVideoFrameCallback !== 'function' && !video.paused) {
+      this.videoFrameCount += 1;
+      debugState.videoFrameCount = this.videoFrameCount;
+    }
+  }
+
+  _armVideoFrames() {
+    if (!DEBUG || this._rvfcArmed) return;
+    const video = this.video;
+    if (typeof video.requestVideoFrameCallback !== 'function') return;
+    this._rvfcArmed = true;
+    const onVideoFrame = () => {
+      this.videoFrameCount += 1;
+      debugState.videoFrameCount = this.videoFrameCount;
+      if (this.running) video.requestVideoFrameCallback(onVideoFrame);
+    };
+    video.requestVideoFrameCallback(onVideoFrame);
   }
 
   resize() {

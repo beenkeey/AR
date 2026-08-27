@@ -81,7 +81,48 @@ export const debugState = {
   renderLoopFps: 'N/A',
   targetVisible: 'NO',
   scaleMode: 'huge',
+
+  heartbeat: 0,
+  lastError: 'NONE',
+  videoFrameCount: 0,
+  videoPaused: 'N/A',
+  videoEnded: 'N/A',
+  videoReady: 'N/A',
+  targetState: 'IDLE',
+  targetFoundCount: 0,
+  targetLostCount: 0,
+  targetEventCount: 0,
+  lastTargetEvent: 'NONE',
+  timeSinceTargetFound: 'N/A',
+  timeSinceTargetLost: 'N/A',
+  targetFoundAtMs: null,
+  targetLostAtMs: null,
+  alvaLastResult: 'NONE',
+  alvaBusy: 'NO',
+  alvaBusyAge: 'N/A',
+  alvaBusySince: null,
+  alvaCalls: 0,
+  lastAlvaStart: 'N/A',
+  lastAlvaEnd: 'N/A',
+  lastAlvaDuration: 'N/A',
+  maxAlvaDuration: 0,
+  rawPosition: 'N/A',
+  finalPosition: 'N/A',
+  gyroSample: 'NO',
+  gyroAge: 'N/A',
+  gyroPermission: 'NOT ASKED',
+  gyroListener: 'NO',
+  gyroEvent: 'none',
+  lastOnFrame: 'N/A',
+  lastRender: 'N/A',
+  renderEnter: 'N/A',
+  renderExit: 'N/A',
 };
+
+export function formatAgeSince(ms) {
+  if (!Number.isFinite(ms)) return 'N/A';
+  return `${((performance.now() - ms) / 1000).toFixed(2)}s`;
+}
 
 export function formatVec3(v, digits = 2) {
   if (!v || !Number.isFinite(v.x)) return 'N/A';

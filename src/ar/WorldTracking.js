@@ -63,6 +63,7 @@ export class WorldTracking {
     this._rigInvQuat = new THREE.Quaternion();
     this._lastNow = 0;
     this._smoothed = false;
+    this._holdingLost = false;
   }
 
   get status() {
@@ -72,8 +73,8 @@ export class WorldTracking {
     return 'TRACKING';
   }
 
-  async prepareSensors() {
-    return this.device.prepare();
+  async prepareSensors(existingPermission) {
+    return this.device.prepare(existingPermission);
   }
 
   enable() {
@@ -86,6 +87,7 @@ export class WorldTracking {
     this._hadRelative = false;
     this._hasPending = false;
     this._smoothed = false;
+    this._holdingLost = false;
     this._lockLocal.identity();
     this.lastDelta.set(0, 0, 0);
     this._mountCamera();
@@ -104,6 +106,7 @@ export class WorldTracking {
     this._hadRelative = false;
     this._hasPending = false;
     this._smoothed = false;
+    this._holdingLost = false;
     this._lockLocal.identity();
     this.lastDelta.set(0, 0, 0);
   }
@@ -152,8 +155,8 @@ export class WorldTracking {
 
   /**
    * AlvaAR drives camera 6DoF. ExhibitionRoot is never written.
-   * relative = inverse(P0) * P. Lost or jumpy samples hold the last camera
-   * transform. P0 is never reseated. Gyro is not used as 6DoF.
+   * relative = inverse(P0) * P. P0 is never reseated.
+   * Lost AlvaAR holds last position; gyro updates rotation when a sample exists.
    */
   update(pose, live, now = performance.now()) {
     if (!this.enabled) {
@@ -164,11 +167,11 @@ export class WorldTracking {
     this.trackingActive = true;
 
     if (!live || !pose) {
-      this.usingLastPose = true;
-      this._hasPending = false;
+      this._applyLostHold(now);
       return false;
     }
 
+    this._holdingLost = false;
     const dt = this._dt(now);
 
     alvaPoseToThreeCamera(
@@ -231,6 +234,25 @@ export class WorldTracking {
     this.usingLastPose = false;
     this._commitCamera(dt);
     return true;
+  }
+
+  _applyLostHold(now) {
+    this.usingLastPose = true;
+    this._hasPending = false;
+    if (!this._holdingLost) {
+      this._holdPos.copy(this.camera.position);
+      this._lostQuat.copy(this.camera.quaternion);
+      this.device.captureReference();
+      this._holdingLost = true;
+    }
+    this._targetPos.copy(this._holdPos);
+    if (this.device.hasSample) {
+      this.device.relative(this._scratchQuat);
+      this._targetQuat.copy(this._lostQuat).multiply(this._scratchQuat);
+    } else {
+      this._targetQuat.copy(this._lostQuat);
+    }
+    this._commitCamera(this._dt(now));
   }
 
   _dt(now) {
