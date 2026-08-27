@@ -54,11 +54,16 @@ export class App {
     this.debugPanel.onReset(() => this.resetTest());
     this.debugPanel.onToggleWorldTracking(() => this.toggleCamera());
 
+    this.freezeHud = document.createElement('pre');
+    this.freezeHud.className = 'freeze-hud';
+    this.freezeHud.hidden = true;
+
     root.appendChild(this.loading.el);
     root.appendChild(this.scanUI.el);
     root.appendChild(this.arUI.el);
     root.appendChild(this.errorUI.el);
     root.appendChild(this.debugPanel.el);
+    root.appendChild(this.freezeHud);
 
     this.placementStarted = false;
     this.capabilities = null;
@@ -68,18 +73,22 @@ export class App {
     this.slamReady = false;
     this.probe = null;
     this._slamMs = 0;
-    this._slamSkip = false;
+    this._slamBusy = false;
     this._scratchPos = new THREE.Vector3();
     this._scratchQuat = new THREE.Quaternion();
     this._scratchScale = new THREE.Vector3();
     this._camWorld = new THREE.Vector3();
     this._euler = new THREE.Euler();
+    this._hudLastNow = 0;
+    this._hudLastCam = '';
 
     this.resetDebugPlacement();
     this.state.subscribe((value) => {
       debugState.appState = value;
       this.scanUI.el.hidden = !this.sessionReady || value !== STATES.SCAN;
       this.arUI.el.hidden = value !== STATES.EXHIBITION;
+      this.freezeHud.hidden =
+        !DEBUG || (value !== STATES.EXHIBITION && value !== STATES.TRANSITION);
     });
   }
 
@@ -152,7 +161,7 @@ export class App {
         debugState.alvaStatus = 'UNAVAILABLE';
         debugState.alvaInstance = 'NOT CREATED';
         debugState.cameraSixDof = 'NO';
-        arWarn('AlvaAR init failed — exhibition look is gyro-only, not 6DoF', err);
+        arWarn('AlvaAR init failed — exhibition camera has no 6DoF source', err);
       }
 
       await this.recognition.start(video);
@@ -195,30 +204,37 @@ export class App {
         const pose = this.tracking.getCameraPose();
         const live = Boolean(this.tracking.hasPose);
         this.worldTracking.update(pose, live, now);
+        debugState.cameraUpdateTimestamp = formatTimestamp();
       }
       this.exhibition.tick(now);
     }
     if (this.exhibition.locked) this.exhibition.enforceLock();
+    this._updateFreezeHud(now);
     this.updateDebug();
   }
 
-  afterRender(now) {
+  afterRender(_now) {
     if (!this.slamReady) return;
     if (!this.recognition.detached) return;
     if (!this.tracking.tracker?.running) return;
-    if (this._slamSkip) {
-      this._slamSkip = false;
-      return;
-    }
-    try {
-      const video = this.session.video;
-      const t0 = performance.now();
-      this.tracking.update(now, video.videoWidth || 640, video.videoHeight || 480);
-      this._slamMs = performance.now() - t0;
-      this._slamSkip = this._slamMs > 80;
-    } catch (err) {
-      arWarn('AlvaAR update failed', err);
-    }
+    if (this._slamBusy) return;
+    this._slamBusy = true;
+    const video = this.session.video;
+    const width = video.videoWidth || 640;
+    const height = video.videoHeight || 480;
+    setTimeout(() => {
+      try {
+        if (!this.tracking.tracker?.running) return;
+        const t0 = performance.now();
+        this.tracking.update(t0, width, height);
+        this._slamMs = performance.now() - t0;
+        debugState.trackingUpdateTimestamp = formatTimestamp();
+      } catch (err) {
+        arWarn('AlvaAR update failed', err);
+      } finally {
+        this._slamBusy = false;
+      }
+    }, 0);
   }
 
   handleTargetFound(data) {
@@ -232,7 +248,7 @@ export class App {
     this.recognition.lockAfterFound();
     this.recognition.detach();
     debugState.mindar = 'STOPPED';
-    debugState.target = 'STOPPED';
+    debugState.target = 'DETACHED';
     debugState.targetVisible = 'DETACHED';
     if (this.slamReady) this.tracking.start(this.session.video);
     arLog('MindAR FOUND — snapshot anchor locked, recognition detached, AlvaAR owns camera');
@@ -428,30 +444,37 @@ export class App {
     debugState.alvaFrames = this.tracking.tracker?.framesProcessed ?? 0;
 
     const exhibition = this.state.is(STATES.EXHIBITION) || this.state.is(STATES.TRANSITION);
+    debugState.appState = exhibition ? 'AR_VIEW' : (this.state.is(STATES.SCAN) ? 'SCAN' : this.state.value);
+    debugState.frameCount = String(this.session.frameTotal);
     if (this.recognition.detached || this.recognition.exhibitionLocked || exhibition) {
       debugState.mindar = 'STOPPED';
-      debugState.target = 'STOPPED';
+      debugState.target = 'DETACHED';
       debugState.targetVisible = 'DETACHED';
       debugState.recognitionState = 'STOPPED';
     } else {
-      debugState.mindar = this.recognition.active ? 'SCANNING' : debugState.mindar;
-      debugState.targetVisible = this.recognition.found ? 'YES' : 'NO';
+      debugState.mindar = this.recognition.active ? 'LIVE' : 'STOPPED';
+      debugState.target = 'ATTACHED';
+      debugState.targetVisible = 'ATTACHED';
     }
 
     if (this.worldTracking.enabled) {
       const slamLive = Boolean(this.tracking.hasPose);
-      debugState.cameraProvider = this.slamReady ? 'alva' : 'gyro-look';
+      const alva = this.tracking.tracker?.slamStatus || (slamLive ? 'TRACKING' : 'LOST');
+      debugState.cameraProvider = this.slamReady ? 'alva' : 'none';
       debugState.cameraSixDof = slamLive ? 'YES' : 'NO';
-      debugState.cameraGain = slamLive ? 'alva relative pose' : 'gyro look (3DoF)';
-      debugState.cameraTrackingActive = 'YES';
-      debugState.cameraTracking = 'ACTIVE';
-      debugState.worldTracking = slamLive ? 'ACTIVE' : this.worldTracking.status;
+      debugState.cameraGain = slamLive ? 'alva relative pose' : 'HOLD LAST POSE';
+      debugState.cameraTrackingActive = slamLive ? 'ACTIVE' : 'HOLD';
+      debugState.cameraTracking = slamLive ? 'ACTIVE' : 'HOLD';
+      debugState.worldTracking = slamLive ? 'TRACKING' : 'HOLD';
       debugState.referencePose = this.worldTracking.referenceSet ? 'SET' : 'WAITING';
-      debugState.cameraPoseValid = slamLive ? 'ALVAAR' : (this.worldTracking.usingLastPose ? 'LAST+GYRO' : 'GYRO');
+      debugState.cameraPoseValid = slamLive ? 'VALID' : 'INVALID';
       debugState.cameraMoved = this.worldTracking.moved ? 'YES' : 'NO';
       debugState.poseDelta = formatVec3(this.worldTracking.lastDelta);
-      debugState.cameraMode = this.worldTracking.status;
-      debugState.alvaStatus = this.tracking.tracker?.slamStatus || debugState.alvaStatus;
+      debugState.cameraMode = slamLive ? 'ACTIVE' : 'HOLD';
+      debugState.alvaStatus = alva === 'TRACKING' ? 'TRACKING' : (alva === 'LOST' ? 'LOST' : alva);
+      debugState.lastValidPose = slamLive ? 'CURRENT' : 'HOLD';
+      debugState.trackingLost = slamLive ? 'NO' : 'YES';
+      debugState.trackingRecovered = slamLive ? 'YES' : 'NO';
     } else {
       debugState.cameraProvider = 'NONE';
       debugState.cameraSixDof = 'NO';
@@ -493,6 +516,32 @@ export class App {
       debugState.modelCameraDistance = formatScalar(this._camWorld.distanceTo(this._scratchPos));
     }
     this.debugPanel.update();
+  }
+
+  _updateFreezeHud(now) {
+    if (this.freezeHud.hidden) return;
+    const exhibitionState =
+      this.state.is(STATES.EXHIBITION) || this.state.is(STATES.TRANSITION)
+        ? 'AR_VIEW'
+        : this.state.is(STATES.SCAN)
+          ? 'SCAN'
+          : this.state.value;
+    const gap = this._hudLastNow ? Math.round(now - this._hudLastNow) : 0;
+    this._hudLastNow = now;
+    debugState.frameCount = String(this.session.frameTotal);
+    debugState.lastRenderTimestamp = formatTimestamp();
+    debugState.renderLoopFps = Number.isFinite(this.session.fps) ? String(this.session.fps) : 'N/A';
+    this.freezeHud.textContent = [
+      `STATE ${exhibitionState}`,
+      `MINDAR ${this.recognition.detached ? 'STOPPED' : 'LIVE'}`,
+      `TARGET ${this.recognition.detached ? 'DETACHED' : 'ATTACHED'}`,
+      `ALVA ${this.tracking.tracker?.slamStatus || 'OFF'}`,
+      `FRAME ${this.session.frameTotal}  gap ${gap}ms`,
+      `FPS ${this.session.fps || 0}`,
+      `CAMERA ${this.worldTracking.usingLastPose || !this.tracking.hasPose ? 'HOLD' : 'ACTIVE'}`,
+      `POSE ${this.tracking.hasPose ? 'VALID' : 'INVALID'}`,
+      `MODEL TRANSFORM UPDATES ${this.exhibition.transformUpdates}`,
+    ].join('\n');
   }
 
   fail(message) {

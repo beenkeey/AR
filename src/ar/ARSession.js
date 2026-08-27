@@ -40,6 +40,7 @@ export class ARSession {
     this.onFrame = null;
     this.onAfterRender = null;
     this._frame = 0;
+    this.frameTotal = 0;
     this._fpsLast = 0;
     this.fps = 0;
     this.lastRenderAt = 0;
@@ -126,6 +127,7 @@ export class ARSession {
   _tick(now) {
     if (!this.running) return;
     this._frame += 1;
+    this.frameTotal += 1;
     this.lastRenderAt = now;
     if (now - this._fpsLast >= 500) {
       this.fps = Math.round((this._frame * 1000) / (now - this._fpsLast));

@@ -252,7 +252,7 @@ export class TargetRecognition {
     this.exhibitionLocked = true;
     this.detached = true;
     debugState.mindar = 'STOPPED';
-    debugState.target = 'STOPPED';
+    debugState.target = 'DETACHED';
     debugState.targetVisible = 'DETACHED';
     debugState.recognitionState = 'STOPPED';
     debugState.controllerStatus = 'STOPPED';

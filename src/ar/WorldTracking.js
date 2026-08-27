@@ -48,7 +48,10 @@ export class WorldTracking {
     this._relQuat = new THREE.Quaternion();
     this._prevRelPos = new THREE.Vector3();
     this._prevRelQuat = new THREE.Quaternion();
+    this._pendingRelPos = new THREE.Vector3();
+    this._pendingRelQuat = new THREE.Quaternion();
     this._hadRelative = false;
+    this._hasPending = false;
     this._lockLocal = new THREE.Matrix4();
     this._targetPos = new THREE.Vector3();
     this._holdPos = new THREE.Vector3();
@@ -81,11 +84,11 @@ export class WorldTracking {
     this.usingLastPose = false;
     this.trackingActive = true;
     this._hadRelative = false;
+    this._hasPending = false;
     this._smoothed = false;
     this._lockLocal.identity();
     this.lastDelta.set(0, 0, 0);
     this._mountCamera();
-    this.device.captureReference();
     this._baseQuat.copy(this.camera.quaternion);
     this._lostQuat.copy(this.camera.quaternion);
     this._targetQuat.copy(this.camera.quaternion);
@@ -99,6 +102,7 @@ export class WorldTracking {
     this.usingLastPose = false;
     this.trackingActive = false;
     this._hadRelative = false;
+    this._hasPending = false;
     this._smoothed = false;
     this._lockLocal.identity();
     this.lastDelta.set(0, 0, 0);
@@ -148,8 +152,8 @@ export class WorldTracking {
 
   /**
    * AlvaAR drives camera 6DoF. ExhibitionRoot is never written.
-   * relative = inverse(P0) * P  →  camera local = relative (rig holds start pose).
-   * Lost pose keeps the last camera transform. MindAR is not used.
+   * relative = inverse(P0) * P. Lost or jumpy samples hold the last camera
+   * transform. P0 is never reseated. Gyro is not used as 6DoF.
    */
   update(pose, live, now = performance.now()) {
     if (!this.enabled) {
@@ -158,17 +162,14 @@ export class WorldTracking {
       return false;
     }
     this.trackingActive = true;
-    const dt = this._dt(now);
 
     if (!live || !pose) {
-      // Rotation-only fallback. DeviceOrientation is not 6DoF and must not
-      // integrate walking. Hold last AlvaAR translation.
       this.usingLastPose = true;
-      this.device.relative(this._scratchQuat);
-      this._targetQuat.copy(this._lostQuat).multiply(this._scratchQuat).normalize();
-      this._commitCamera(dt);
+      this._hasPending = false;
       return false;
     }
+
+    const dt = this._dt(now);
 
     alvaPoseToThreeCamera(
       pose,
@@ -184,12 +185,11 @@ export class WorldTracking {
       this._refInv.copy(this._current).invert();
       this.referenceSet = true;
       this._hadRelative = false;
+      this._hasPending = false;
       this.usingLastPose = false;
       this.lastDelta.set(0, 0, 0);
       this._targetPos.set(0, 0, 0);
       this._targetQuat.identity();
-      this.device.captureReference();
-      this._lostQuat.identity();
       this._commitCamera(dt);
       return true;
     }
@@ -200,15 +200,23 @@ export class WorldTracking {
     if (this._hadRelative) {
       const jumpPos = this._relPos.distanceTo(this._prevRelPos);
       const jumpRot = this._relQuat.angleTo(this._prevRelQuat);
-      if (jumpPos > CONFIG.worldTracking.jumpPos || jumpRot > CONFIG.worldTracking.jumpRot) {
-        this._reanchorWithoutTeleport();
-        this._refInv.copy(this._current).invert();
-        this._hadRelative = false;
-        this.usingLastPose = true;
-        this._commitCamera(dt);
-        return false;
+      const jumped =
+        jumpPos > CONFIG.worldTracking.jumpPos || jumpRot > CONFIG.worldTracking.jumpRot;
+      if (jumped) {
+        const pendingStable =
+          this._hasPending &&
+          this._relPos.distanceTo(this._pendingRelPos) <= CONFIG.worldTracking.jumpPos &&
+          this._relQuat.angleTo(this._pendingRelQuat) <= CONFIG.worldTracking.jumpRot;
+        if (!pendingStable) {
+          this._pendingRelPos.copy(this._relPos);
+          this._pendingRelQuat.copy(this._relQuat);
+          this._hasPending = true;
+          this.usingLastPose = true;
+          return false;
+        }
       }
-      if (jumpPos < CONFIG.worldTracking.translationDeadzone) {
+      this._hasPending = false;
+      if (!jumped && jumpPos < CONFIG.worldTracking.translationDeadzone) {
         this._relPos.copy(this._prevRelPos);
       }
     }
@@ -221,27 +229,8 @@ export class WorldTracking {
     this._targetPos.copy(this._relPos);
     this._targetQuat.copy(this._relQuat);
     this.usingLastPose = false;
-    this.device.captureReference();
-    this._lostQuat.copy(this._relQuat);
     this._commitCamera(dt);
     return true;
-  }
-
-  _reanchorWithoutTeleport() {
-    const camera = this.camera;
-    camera.updateMatrixWorld(true);
-    this._cameraAtLock.copy(camera.matrixWorld);
-    this.rig.matrix.copy(this._cameraAtLock);
-    this.rig.matrix.decompose(this.rig.position, this.rig.quaternion, this.rig.scale);
-    this.rig.matrixAutoUpdate = false;
-    this.rig.updateMatrixWorld(true);
-    camera.position.set(0, 0, 0);
-    camera.quaternion.identity();
-    camera.scale.set(1, 1, 1);
-    this._targetPos.set(0, 0, 0);
-    this._targetQuat.identity();
-    this._smoothPos.copy(this._targetPos);
-    this._smoothQuat.copy(this._targetQuat);
   }
 
   _dt(now) {

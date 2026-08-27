@@ -23,7 +23,6 @@ export class TrackingManager {
       onPose: (pose) => this.onPose?.(pose),
       onStatus: (status) => {
         debugState.alvaStatus = status;
-        debugState.cameraTracking = status;
         debugState.alvaInstance = this.tracker?.alva ? 'CREATED' : 'NOT CREATED';
         this.onStatus?.(status);
       },
@@ -33,7 +32,6 @@ export class TrackingManager {
     debugState.backend = this.backend;
     debugState.alvaStatus = this.tracker.slamStatus || 'INITIALIZING';
     debugState.alvaInstance = this.tracker.alva ? 'CREATED' : 'NOT CREATED';
-    debugState.cameraTracking = debugState.alvaStatus;
     return this.backend;
   }
 

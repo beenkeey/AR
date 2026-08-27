@@ -27,8 +27,10 @@ export class DebugPanel {
       <div class="debug-row"><span>STATE</span><strong data-k="appState">N/A</strong></div>
       <div class="debug-row"><span>MINDAR</span><strong data-k="mindar">N/A</strong></div>
       <div class="debug-row"><span>TARGET</span><strong data-k="targetVisible">N/A</strong></div>
+      <div class="debug-row"><span>ALVA</span><strong data-k="alvaStatus">N/A</strong></div>
+      <div class="debug-row"><span>POSE</span><strong data-k="cameraPoseValid">N/A</strong></div>
       <div class="debug-row"><span>ANCHOR</span><strong data-k="anchor">N/A</strong></div>
-      <div class="debug-row"><span>CAMERA TRACKING</span><strong data-k="cameraTracking">N/A</strong></div>
+      <div class="debug-row"><span>CAMERA</span><strong data-k="cameraTracking">N/A</strong></div>
       <div class="debug-row"><span>CAMERA PROVIDER</span><strong data-k="cameraProvider">N/A</strong></div>
       <div class="debug-row"><span>6DoF</span><strong data-k="cameraSixDof">N/A</strong></div>
       <div class="debug-row"><span>WORLD</span><strong data-k="modelMode">N/A</strong></div>
