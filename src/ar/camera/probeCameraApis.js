@@ -45,23 +45,14 @@ export function applyProbeDebug(probe) {
   debugState.motionPermission = probe.motionPermission;
 }
 
-export async function requestSensorPermissions(probe) {
-  if (probe.orientationPermissionAPI) {
-    try {
-      probe.orientationPermission = await DeviceOrientationEvent.requestPermission();
-    } catch (err) {
-      probe.orientationPermission = `ERROR ${err?.message || err}`;
-    }
-  } else {
-    probe.orientationPermission = probe.deviceOrientation ? 'NOT REQUIRED' : 'UNAVAILABLE';
-  }
-
-  if (probe.motionPermissionAPI) {
-    probe.motionPermission = 'NOT REQUESTED';
-  } else {
-    probe.motionPermission = probe.deviceMotion ? 'NOT REQUIRED' : 'UNAVAILABLE';
-  }
-
+/**
+ * Orientation permission is requested only from DeviceRotation.requestPermissionFromGesture()
+ * during the Start tap. This helper never calls requestPermission().
+ */
+export function applyOrientationPermission(probe, status) {
+  probe.orientationPermission = status;
+  if (probe.motionPermissionAPI) probe.motionPermission = 'NOT REQUESTED';
+  else probe.motionPermission = probe.deviceMotion ? 'NOT REQUIRED' : 'UNAVAILABLE';
   applyProbeDebug(probe);
   return probe;
 }

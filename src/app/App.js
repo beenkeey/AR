@@ -9,7 +9,7 @@ import { TrackingManager } from '../ar/TrackingManager.js';
 import { alvaPoseToThreeCamera } from '../ar/AlvaARTracker.js';
 import { WorldTracking } from '../ar/WorldTracking.js';
 import { SessionAnchor } from '../ar/SessionAnchor.js';
-import { probeCameraApis, requestSensorPermissions } from '../ar/camera/probeCameraApis.js';
+import { applyOrientationPermission, probeCameraApis } from '../ar/camera/probeCameraApis.js';
 import { ExhibitionScene } from '../ar/ExhibitionScene.js';
 import { TargetRecognition } from '../recognition/TargetRecognition.js';
 import { RigModel, createFallbackRig } from '../model/RigModel.js';
@@ -130,14 +130,20 @@ export class App {
     this.loading.show(MESSAGES.tapToStart);
     this.root.classList.add('awaiting-gesture');
     this.probe = await probeCameraApis();
-    const start = async () => {
-      this.root.removeEventListener('pointerdown', start);
+    const start = () => {
+      this.root.removeEventListener('click', start);
       this.root.classList.remove('awaiting-gesture');
-      this.probe = await requestSensorPermissions(this.probe);
-      await this.worldTracking.prepareSensors(this.probe.orientationPermission);
-      await this.startSession();
+      const permissionPromise = this.worldTracking.requestPermissionFromGesture();
+      this._startAfterOrientationPermission(permissionPromise);
     };
-    this.root.addEventListener('pointerdown', start, { once: true });
+    this.root.addEventListener('click', start, { once: true });
+  }
+
+  async _startAfterOrientationPermission(permissionPromise) {
+    const status = await permissionPromise;
+    if (this.probe) applyOrientationPermission(this.probe, status);
+    this.worldTracking.prepareSensors(status);
+    await this.startSession();
   }
 
   async startSession() {
@@ -161,8 +167,10 @@ export class App {
         );
         this.slamReady = true;
         debugState.alvaInstance = 'CREATED';
-        debugState.alvaStatus = 'READY';
-        arLog('AlvaAR WASM ready (idle until FOUND)');
+        this.tracking.start(video);
+        debugState.alvaStatus = this.tracking.tracker?.slamStatus || 'INITIALIZING';
+        debugState.alvaRunning = this.tracking.tracker?.running ? 'YES' : 'NO';
+        arLog('AlvaAR WASM ready, feeding camera during SCAN');
       } catch (err) {
         this.slamReady = false;
         debugState.alvaStatus = 'UNAVAILABLE';
@@ -192,7 +200,7 @@ export class App {
     this.placementStarted = false;
     this.transitioning = false;
     this.worldTracking.disable();
-    this.tracking.stop();
+    if (this.slamReady) this.tracking.start(this.session.video);
     this.anchor.clear();
     this.exhibition.hide();
     this.arUI.setScaleMode('huge');
@@ -222,7 +230,6 @@ export class App {
 
   afterRender(_now) {
     if (!this.slamReady) return;
-    if (!this.recognition.detached) return;
     if (!this.tracking.tracker?.running) return;
     if (this._slamBusy) return;
     this._slamBusy = true;
@@ -259,8 +266,10 @@ export class App {
     debugState.target = 'DETACHED';
     debugState.targetState = 'DETACHED';
     debugState.targetVisible = 'DETACHED';
-    if (this.slamReady) this.tracking.start(this.session.video);
-    arLog('MindAR FOUND — snapshot anchor locked, recognition detached, AlvaAR owns camera');
+    if (this.slamReady && !this.tracking.tracker?.running) {
+      this.tracking.start(this.session.video);
+    }
+    arLog('MindAR FOUND — snapshot anchor locked, recognition detached, AlvaAR continues');
     this.beginTransition();
   }
 
@@ -391,6 +400,7 @@ export class App {
     debugState.target = 'LOST';
     this.scanUI.setTitle(MESSAGES.scan);
     this.state.set(STATES.SCAN);
+    if (this.slamReady) this.tracking.start(this.session.video);
     try {
       await this.recognition.start(this.session.video);
     } catch (err) {
@@ -432,8 +442,10 @@ export class App {
     debugState.cameraTrackingActive = 'NO';
     debugState.renderLoopFps = 'N/A';
     debugState.lastRenderTimestamp = 'N/A';
-    debugState.alvaStatus = this.slamReady ? 'READY' : 'OFF';
+    debugState.alvaStatus = this.tracking.tracker?.slamStatus
+      || (this.slamReady ? 'READY' : 'OFF');
     debugState.alvaInstance = this.slamReady ? 'CREATED' : 'NOT CREATED';
+    debugState.alvaRunning = this.tracking.tracker?.running ? 'YES' : 'NO';
     debugState.cameraProvider = 'NONE';
     debugState.cameraSixDof = 'NO';
     debugState.anchor = 'NONE';
@@ -457,6 +469,14 @@ export class App {
     debugState.renderLoopFps = debugState.fps;
     debugState.lastRenderTimestamp = formatTimestamp();
     debugState.alvaFrames = this.tracking.tracker?.framesProcessed ?? 0;
+    debugState.alvaRunning = this.tracking.tracker?.running ? 'YES' : 'NO';
+    debugState.alvaVideoReady = video ? String(video.readyState) : 'N/A';
+    debugState.alvaVideoSize = video && video.videoWidth
+      ? `${video.videoWidth}x${video.videoHeight}`
+      : 'N/A';
+    if (this.slamReady && this.tracking.tracker) {
+      debugState.alvaStatus = this.tracking.tracker.slamStatus || debugState.alvaStatus;
+    }
 
     const exhibition = this.state.is(STATES.EXHIBITION) || this.state.is(STATES.TRANSITION);
     debugState.appState = exhibition ? 'AR_VIEW' : (this.state.is(STATES.SCAN) ? 'SCAN' : this.state.value);

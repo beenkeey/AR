@@ -55,6 +55,8 @@ export class WorldTracking {
     this._lockLocal = new THREE.Matrix4();
     this._targetPos = new THREE.Vector3();
     this._holdPos = new THREE.Vector3();
+    this._holdRelPos = new THREE.Vector3();
+    this._holdRelQuat = new THREE.Quaternion();
     this._targetQuat = new THREE.Quaternion();
     this._smoothPos = new THREE.Vector3();
     this._smoothQuat = new THREE.Quaternion();
@@ -73,7 +75,11 @@ export class WorldTracking {
     return 'TRACKING';
   }
 
-  async prepareSensors(existingPermission) {
+  requestPermissionFromGesture() {
+    return this.device.requestPermissionFromGesture();
+  }
+
+  prepareSensors(existingPermission) {
     return this.device.prepare(existingPermission);
   }
 
@@ -171,7 +177,6 @@ export class WorldTracking {
       return false;
     }
 
-    this._holdingLost = false;
     const dt = this._dt(now);
 
     alvaPoseToThreeCamera(
@@ -185,6 +190,7 @@ export class WorldTracking {
     this._current.compose(this._pos, this._quat, this._one);
 
     if (!this.referenceSet) {
+      this._holdingLost = false;
       this._refInv.copy(this._current).invert();
       this.referenceSet = true;
       this._hadRelative = false;
@@ -199,6 +205,15 @@ export class WorldTracking {
 
     this._relative.multiplyMatrices(this._refInv, this._current);
     this._relative.decompose(this._relPos, this._relQuat, this._scale);
+
+    if (this._holdingLost) {
+      const posJump = this._relPos.distanceTo(this._holdPos);
+      if (posJump > CONFIG.worldTracking.jumpPos) {
+        this._applyLostHold(now);
+        return false;
+      }
+      this._holdingLost = false;
+    }
 
     if (this._hadRelative) {
       const jumpPos = this._relPos.distanceTo(this._prevRelPos);
@@ -240,8 +255,11 @@ export class WorldTracking {
     this.usingLastPose = true;
     this._hasPending = false;
     if (!this._holdingLost) {
-      this._holdPos.copy(this.camera.position);
+      // Hold stays in exhibition translation space (same as _relPos), not pitched local.
+      this._holdPos.copy(this._smoothPos);
       this._lostQuat.copy(this.camera.quaternion);
+      this._holdRelPos.copy(this._hadRelative ? this._prevRelPos : this._smoothPos);
+      this._holdRelQuat.copy(this._hadRelative ? this._prevRelQuat : this.camera.quaternion);
       this.device.captureReference();
       this._holdingLost = true;
     }
@@ -275,7 +293,11 @@ export class WorldTracking {
       this._smoothQuat.slerp(this._targetQuat, THREE.MathUtils.clamp(rotK, 0, 1));
     }
 
-    camera.position.copy(this._smoothPos);
+    // _smoothPos is exhibition/Alva-relative translation (P0 frame, Y-up world axes).
+    // CameraRig keeps lookAt pitch for orientation; undo that rotation on translation
+    // so worldPos = T_rig + _smoothPos (Alva Z stays world Z, not world Y).
+    this._rigInvQuat.copy(this.rig.quaternion).invert();
+    camera.position.copy(this._smoothPos).applyQuaternion(this._rigInvQuat);
     camera.quaternion.copy(this._smoothQuat);
     camera.scale.set(1, 1, 1);
     camera.matrixAutoUpdate = false;
@@ -288,7 +310,7 @@ export class WorldTracking {
       this._scratchMat.copy(this.rig.matrixWorld).invert();
       this._scratchVec.applyMatrix4(this._scratchMat);
       camera.position.copy(this._scratchVec);
-      this._smoothPos.copy(camera.position);
+      this._smoothPos.copy(camera.position).applyQuaternion(this.rig.quaternion);
       camera.updateMatrix();
       camera.updateMatrixWorld(true);
     }

@@ -41,6 +41,7 @@ export class AlvaARTracker {
     this.applyToCamera = false;
     this.lastPose = null;
     this.framesProcessed = 0;
+    this._lastPointsAt = 0;
   }
 
   getCameraPose() {
@@ -81,13 +82,15 @@ export class AlvaARTracker {
   }
 
   start(video) {
-    this.video = video;
+    if (video) this.video = video;
+    if (this.running) return;
     this.running = true;
     this.hasPose = false;
     this.lastPose = null;
     this.framesProcessed = 0;
     this._hadTracking = false;
     this._errorLogged = false;
+    this._lastPointsAt = 0;
     this._setStatus('INITIALIZING');
     this.onStatus?.(this.slamStatus);
   }
@@ -179,25 +182,32 @@ export class AlvaARTracker {
       this._hadTracking = true;
       this._setStatus('TRACKING');
       this.onPose?.(this.lastPose);
-      this.featurePoints = [];
-      if (this.framesProcessed === 1 || this.framesProcessed % 30 === 0) {
-        arLog(`AlvaAR frame ${this.framesProcessed} TRACKING`);
-      }
     } else {
       this.hasPose = false;
       // Keep lastPose. Lost tracking must not stop the render loop or reset the camera.
       this._setStatus(this._hadTracking ? 'LOST' : 'INITIALIZING');
-      try {
-        this.featurePoints = this.alva.getFramePoints?.() || [];
-      } catch {
-        this.featurePoints = [];
-      }
-      if (this.framesProcessed === 1 || this.framesProcessed % 30 === 0) {
-        arLog(`AlvaAR frame ${this.framesProcessed} ${this.slamStatus} points=${this.featurePoints.length}`);
-      }
+    }
+    this._sampleFeaturePoints(now);
+    if (this.framesProcessed === 1 || this.framesProcessed % 30 === 0) {
+      arLog(
+        pose
+          ? `AlvaAR frame ${this.framesProcessed} TRACKING`
+          : `AlvaAR frame ${this.framesProcessed} ${this.slamStatus} points=${this.featurePoints.length}`,
+      );
     }
 
     return this.hasPose;
+  }
+
+  _sampleFeaturePoints(now) {
+    if (now - this._lastPointsAt < 250) return;
+    this._lastPointsAt = now;
+    try {
+      this.featurePoints = this.alva.getFramePoints?.() || [];
+    } catch {
+      this.featurePoints = [];
+    }
+    if (DEBUG) debugState.alvaPoints = String(this.featurePoints.length);
   }
 
   _setStatus(next) {

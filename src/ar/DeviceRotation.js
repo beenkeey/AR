@@ -12,6 +12,7 @@ export class DeviceRotation {
     this.hasSample = false;
     this.lastSampleAt = null;
     this.permission = 'NOT ASKED';
+    this._permissionPromise = null;
     this._preferAbsolute = false;
     this._q = new THREE.Quaternion();
     this._qRef = new THREE.Quaternion();
@@ -24,29 +25,67 @@ export class DeviceRotation {
     this._onAbsolute = (event) => this._handle(event, 'absolute');
   }
 
-  /**
-   * Bind listeners. Skip a second iOS permission prompt when App already
-   * obtained it from the Start tap — a later await is outside the user gesture.
-   */
-  async prepare(existingPermission) {
-    const asked = existingPermission === 'granted'
-      || existingPermission === 'denied'
-      || existingPermission === 'NOT REQUIRED';
+  _alreadyAsked(status = this.permission) {
+    return status === 'granted'
+      || status === 'denied'
+      || status === 'NOT REQUIRED'
+      || status === 'UNAVAILABLE'
+      || status === 'ERROR'
+      || (typeof status === 'string' && status.startsWith('ERROR'));
+  }
 
-    if (!asked && typeof DeviceOrientationEvent?.requestPermission === 'function') {
-      try {
-        this.permission = await DeviceOrientationEvent.requestPermission.call(DeviceOrientationEvent);
-      } catch {
-        this.permission = 'ERROR';
-      }
-    } else if (existingPermission) {
-      this.permission = existingPermission;
-    } else {
-      this.permission = typeof DeviceOrientationEvent?.requestPermission === 'function'
-        ? 'NOT ASKED'
-        : 'NOT REQUIRED';
+  /**
+   * Call only from the Start tap, before any await.
+   * Invokes requestPermission() synchronously in that user gesture.
+   */
+  requestPermissionFromGesture() {
+    if (this._permissionPromise) return this._permissionPromise;
+    if (this._alreadyAsked()) {
+      this._permissionPromise = Promise.resolve(this.permission);
+      this._syncDebug();
+      return this._permissionPromise;
     }
 
+    if (typeof DeviceOrientationEvent?.requestPermission !== 'function') {
+      this.permission = typeof DeviceOrientationEvent !== 'undefined' ? 'NOT REQUIRED' : 'UNAVAILABLE';
+      this._permissionPromise = Promise.resolve(this.permission);
+      this._syncDebug();
+      return this._permissionPromise;
+    }
+
+    try {
+      this._permissionPromise = Promise.resolve(
+        DeviceOrientationEvent.requestPermission.call(DeviceOrientationEvent),
+      ).then((status) => {
+        this.permission = status || 'ERROR';
+        this._syncDebug();
+        return this.permission;
+      }).catch(() => {
+        this.permission = 'ERROR';
+        this._syncDebug();
+        return this.permission;
+      });
+    } catch {
+      this.permission = 'ERROR';
+      this._permissionPromise = Promise.resolve(this.permission);
+      this._syncDebug();
+    }
+    return this._permissionPromise;
+  }
+
+  /**
+   * Bind listeners only. Never calls requestPermission() — that must happen
+   * in requestPermissionFromGesture() during the Start tap.
+   */
+  prepare(existingPermission) {
+    const status = existingPermission || this.permission || 'NOT ASKED';
+    if (this._alreadyAsked(status)) {
+      this.permission = typeof status === 'string' && status.startsWith('ERROR')
+        ? 'ERROR'
+        : status;
+    } else if (typeof DeviceOrientationEvent?.requestPermission !== 'function') {
+      this.permission = typeof DeviceOrientationEvent !== 'undefined' ? 'NOT REQUIRED' : 'UNAVAILABLE';
+    }
     this._arm();
     this._syncDebug();
     return this.permission === 'granted' || this.permission === 'NOT REQUIRED';

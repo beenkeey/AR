@@ -41,6 +41,10 @@ export class DebugPanel {
       <div class="debug-row"><span>TIME SINCE TARGET FOUND</span><strong data-k="timeSinceTargetFound">N/A</strong></div>
       <div class="debug-row"><span>TIME SINCE TARGET LOST</span><strong data-k="timeSinceTargetLost">N/A</strong></div>
       <div class="debug-row"><span>ALVA STATE</span><strong data-k="alvaStatus">N/A</strong></div>
+      <div class="debug-row"><span>ALVA RUNNING</span><strong data-k="alvaRunning">N/A</strong></div>
+      <div class="debug-row"><span>ALVA POINTS</span><strong data-k="alvaPoints">N/A</strong></div>
+      <div class="debug-row"><span>ALVA VIDEO READY</span><strong data-k="alvaVideoReady">N/A</strong></div>
+      <div class="debug-row"><span>ALVA VIDEO SIZE</span><strong data-k="alvaVideoSize">N/A</strong></div>
       <div class="debug-row"><span>ALVA LAST RESULT</span><strong data-k="alvaLastResult">N/A</strong></div>
       <div class="debug-row"><span>ALVA BUSY</span><strong data-k="alvaBusy">N/A</strong></div>
       <div class="debug-row"><span>BUSY AGE</span><strong data-k="alvaBusyAge">N/A</strong></div>
