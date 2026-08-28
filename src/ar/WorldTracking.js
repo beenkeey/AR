@@ -9,11 +9,12 @@ import { DeviceRotation } from './DeviceRotation.js';
  * Graph:
  *   exhibitionScene
  *     CameraRig     ← frozen exhibition start pose
- *       camera      ← AlvaAR relative pose only (position + orientation)
+ *       camera      ← gyro look (360°) + clamped Alva XZ
  *     ExhibitionRoot ← never written from here
  *
  * relative = inverse(P0) * P
- * Lost AlvaAR keeps the last camera transform. MindAR is not used.
+ * Gyro owns orientation after enable. Alva owns only small XZ deltas.
+ * Lost AlvaAR keeps the last accepted position. MindAR is not used.
  */
 export class WorldTracking {
   constructor(camera, scene) {
@@ -63,6 +64,9 @@ export class WorldTracking {
     this._lostQuat = new THREE.Quaternion();
     this._baseQuat = new THREE.Quaternion();
     this._rigInvQuat = new THREE.Quaternion();
+    this._appliedPos = new THREE.Vector3();
+    this._lastConsumedRelPos = new THREE.Vector3();
+    this._moveDelta = new THREE.Vector3();
     this._lastNow = 0;
     this._smoothed = false;
     this._holdingLost = false;
@@ -96,10 +100,13 @@ export class WorldTracking {
     this._holdingLost = false;
     this._lockLocal.identity();
     this.lastDelta.set(0, 0, 0);
+    this._appliedPos.set(0, 0, 0);
+    this._lastConsumedRelPos.set(0, 0, 0);
     this._mountCamera();
     this._baseQuat.copy(this.camera.quaternion);
     this._lostQuat.copy(this.camera.quaternion);
     this._targetQuat.copy(this.camera.quaternion);
+    this.device.captureReference();
   }
 
   disable() {
@@ -115,6 +122,8 @@ export class WorldTracking {
     this._holdingLost = false;
     this._lockLocal.identity();
     this.lastDelta.set(0, 0, 0);
+    this._appliedPos.set(0, 0, 0);
+    this._lastConsumedRelPos.set(0, 0, 0);
   }
 
   _mountCamera() {
@@ -160,9 +169,9 @@ export class WorldTracking {
   }
 
   /**
-   * AlvaAR drives camera 6DoF. ExhibitionRoot is never written.
+   * Gyro owns look after enable. Alva only contributes clamped XZ deltas.
    * relative = inverse(P0) * P. P0 is never reseated.
-   * Lost AlvaAR holds last position; gyro updates rotation when a sample exists.
+   * Lost AlvaAR holds last accepted position; gyro keeps 360° look.
    */
   update(pose, live, now = performance.now()) {
     if (!this.enabled) {
@@ -197,8 +206,10 @@ export class WorldTracking {
       this._hasPending = false;
       this.usingLastPose = false;
       this.lastDelta.set(0, 0, 0);
-      this._targetPos.set(0, 0, 0);
-      this._targetQuat.identity();
+      this._appliedPos.set(0, 0, 0);
+      this._lastConsumedRelPos.set(0, 0, 0);
+      this._targetPos.copy(this._appliedPos);
+      this._applyGyroLook();
       this._commitCamera(dt);
       return true;
     }
@@ -213,6 +224,8 @@ export class WorldTracking {
         return false;
       }
       this._holdingLost = false;
+      // Resume from the new Alva origin without teleporting to it.
+      this._lastConsumedRelPos.copy(this._relPos);
     }
 
     if (this._hadRelative) {
@@ -230,8 +243,13 @@ export class WorldTracking {
           this._pendingRelQuat.copy(this._relQuat);
           this._hasPending = true;
           this.usingLastPose = true;
+          this._lastConsumedRelPos.copy(this._relPos);
+          this._targetPos.copy(this._appliedPos);
+          this._applyGyroLook();
+          this._commitCamera(dt);
           return false;
         }
+        this._lastConsumedRelPos.copy(this._relPos);
       }
       this._hasPending = false;
       if (!jumped && jumpPos < CONFIG.worldTracking.translationDeadzone) {
@@ -242,34 +260,64 @@ export class WorldTracking {
     this._prevRelPos.copy(this._relPos);
     this._prevRelQuat.copy(this._relQuat);
 
-    const posGain = CONFIG.worldTracking.positionGain ?? CONFIG.worldTracking.walkGain ?? 1;
-    this._relPos.multiplyScalar(posGain);
-    this._targetPos.copy(this._relPos);
-    this._targetQuat.copy(this._relQuat);
+    this._consumeHorizontalDelta();
+    this._targetPos.copy(this._appliedPos);
+    this._applyGyroLook();
     this.usingLastPose = false;
     this._commitCamera(dt);
     return true;
+  }
+
+  _applyGyroLook() {
+    if (this.device.hasSample) {
+      this.device.relative(this._scratchQuat);
+      this._targetQuat.copy(this._baseQuat).multiply(this._scratchQuat);
+      return;
+    }
+    this._targetQuat.copy(this._baseQuat);
+  }
+
+  _consumeHorizontalDelta() {
+    this._moveDelta.copy(this._relPos).sub(this._lastConsumedRelPos);
+    this._lastConsumedRelPos.copy(this._relPos);
+    this._moveDelta.y = 0;
+
+    const len = Math.hypot(this._moveDelta.x, this._moveDelta.z);
+    const dead = CONFIG.worldTracking.moveDeadzone ?? CONFIG.worldTracking.translationDeadzone;
+    if (len < dead) return;
+
+    const maxDelta = CONFIG.worldTracking.maxDeltaPerFrame;
+    if (len > maxDelta && len > 1e-8) {
+      this._moveDelta.multiplyScalar(maxDelta / len);
+    }
+
+    this._appliedPos.x += this._moveDelta.x;
+    this._appliedPos.z += this._moveDelta.z;
+    this._appliedPos.y = 0;
+
+    const radius = Math.hypot(this._appliedPos.x, this._appliedPos.z);
+    const maxRadius = CONFIG.worldTracking.maxRadius;
+    if (radius > maxRadius && radius > 1e-8) {
+      const k = maxRadius / radius;
+      this._appliedPos.x *= k;
+      this._appliedPos.z *= k;
+    }
   }
 
   _applyLostHold(now) {
     this.usingLastPose = true;
     this._hasPending = false;
     if (!this._holdingLost) {
-      // Hold stays in exhibition translation space (same as _relPos), not pitched local.
       this._holdPos.copy(this._smoothPos);
+      this._holdPos.y = 0;
+      this._appliedPos.copy(this._holdPos);
       this._lostQuat.copy(this.camera.quaternion);
       this._holdRelPos.copy(this._hadRelative ? this._prevRelPos : this._smoothPos);
       this._holdRelQuat.copy(this._hadRelative ? this._prevRelQuat : this.camera.quaternion);
-      this.device.captureReference();
       this._holdingLost = true;
     }
     this._targetPos.copy(this._holdPos);
-    if (this.device.hasSample) {
-      this.device.relative(this._scratchQuat);
-      this._targetQuat.copy(this._lostQuat).multiply(this._scratchQuat);
-    } else {
-      this._targetQuat.copy(this._lostQuat);
-    }
+    this._applyGyroLook();
     this._commitCamera(this._dt(now));
   }
 
@@ -292,10 +340,10 @@ export class WorldTracking {
       this._smoothPos.lerp(this._targetPos, THREE.MathUtils.clamp(posK, 0, 1));
       this._smoothQuat.slerp(this._targetQuat, THREE.MathUtils.clamp(rotK, 0, 1));
     }
+    this._smoothPos.y = 0;
 
-    // _smoothPos is exhibition/Alva-relative translation (P0 frame, Y-up world axes).
-    // CameraRig keeps lookAt pitch for orientation; undo that rotation on translation
-    // so worldPos = T_rig + _smoothPos (Alva Z stays world Z, not world Y).
+    // _smoothPos is exhibition-space XZ. CameraRig keeps lookAt pitch;
+    // undo that rotation on translation so worldPos = T_rig + _smoothPos.
     this._rigInvQuat.copy(this.rig.quaternion).invert();
     camera.position.copy(this._smoothPos).applyQuaternion(this._rigInvQuat);
     camera.quaternion.copy(this._smoothQuat);
@@ -311,6 +359,11 @@ export class WorldTracking {
       this._scratchVec.applyMatrix4(this._scratchMat);
       camera.position.copy(this._scratchVec);
       this._smoothPos.copy(camera.position).applyQuaternion(this.rig.quaternion);
+      this._smoothPos.y = 0;
+      this._appliedPos.x = this._smoothPos.x;
+      this._appliedPos.z = this._smoothPos.z;
+      this._appliedPos.y = 0;
+      camera.position.copy(this._smoothPos).applyQuaternion(this._rigInvQuat);
       camera.updateMatrix();
       camera.updateMatrixWorld(true);
     }

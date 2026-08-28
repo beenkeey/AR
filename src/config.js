@@ -53,6 +53,12 @@ export const CONFIG = {
     jumpPos: 0.9,
     jumpRot: 0.5,
     translationDeadzone: 0.012,
+    // Horizontal Alva delta below this is treated as stand-still / look-only.
+    moveDeadzone: 0.02,
+    // Max XZ applied from one Alva pose; leftover is discarded, never chased.
+    maxDeltaPerFrame: 0.04,
+    // Hard cap around exhibition spawn so Alva scale drift cannot fly the camera.
+    maxRadius: 2.5,
     positionGain: 1,
   },
   cameraSmoothing: {

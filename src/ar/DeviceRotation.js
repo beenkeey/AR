@@ -110,6 +110,11 @@ export class DeviceRotation {
     this._syncDebug();
   }
 
+  /**
+   * Freeze "identity look" to the current phone orientation.
+   * WorldTracking captures this at exhibition enable so 360° gyro is relative
+   * to the start pose. Do not recapture on Alva LOST — that would snap look.
+   */
   captureReference() {
     if (this.hasSample) this._qRef.copy(this._q);
   }
