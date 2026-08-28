@@ -51,17 +51,26 @@ export function createUTairHelicopter() {
   chin.position.set(1.22, -0.18, 0);
   chin.scale.set(1.2, 0.7, 1.05);
 
-  const join = new THREE.Mesh(new THREE.SphereGeometry(0.24, RAD, 10), yellow);
-  join.position.set(-0.95, 0.06, 0);
-  const boomY = boomBetween(yellow, -0.92, 0.06, 0, -2.25, 0.16, 0, 0.22, 0.1);
-  const boomR = boomBetween(red, -2.12, 0.15, 0, -3.62, 0.32, 0, 0.1, 0.055);
+  // One boom group: yellow root + red taper stay colinear (same parent, same pitch).
+  const boom = new THREE.Group();
+  boom.position.set(0, 0.05, 0);
+  boom.rotation.z = 0.045;
 
-  const fin = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.95, 3, 8), red);
-  fin.position.set(-3.58, 0.82, 0);
-  fin.scale.set(0.5, 1, 1.7);
-  const stab = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.95, 3, 8), red);
+  const join = new THREE.Mesh(new THREE.SphereGeometry(0.38, RAD, 10), yellow);
+  join.position.set(-0.82, 0, 0);
+  join.scale.set(1.05, 0.92, 0.92);
+  boom.add(join);
+  boom.add(boomSeg(yellow, -0.78, -2.28, 0.36, 0.13));
+  boom.add(boomSeg(red, -2.12, -3.52, 0.135, 0.058));
+
+  const fin = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.88, 3, 8), red);
+  fin.position.set(-3.42, 0.5, 0);
+  fin.scale.set(0.48, 1, 1.65);
+  boom.add(fin);
+  const stab = new THREE.Mesh(new THREE.CapsuleGeometry(0.038, 0.92, 3, 8), red);
   stab.rotation.x = Math.PI / 2;
-  stab.position.set(-3.5, 0.38, 0);
+  stab.position.set(-3.32, 0.02, 0);
+  boom.add(stab);
 
   const engineL = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 0.52, 3, 8), black);
   engineL.rotation.z = Math.PI / 2;
@@ -84,10 +93,12 @@ export function createUTairHelicopter() {
     new THREE.PlaneGeometry(0.78, 0.16),
     new THREE.MeshBasicMaterial({ map: tailCode, transparent: true }),
   );
-  code.position.set(-2.65, 0.22, 0.08);
+  code.position.set(-2.55, 0.02, 0.09);
+  boom.add(code);
   const codeR = code.clone();
-  codeR.position.z = -0.07;
+  codeR.position.z = -0.09;
   codeR.rotation.y = Math.PI;
+  boom.add(codeR);
 
   for (let i = 0; i < 6; i += 1) {
     const win = new THREE.Mesh(new THREE.CircleGeometry(0.075, 12), glass);
@@ -128,7 +139,7 @@ export function createUTairHelicopter() {
   }
 
   const tail = new THREE.Group();
-  tail.position.set(-3.6, 0.95, 0.15);
+  tail.position.set(-3.48, 0.42, 0.13);
   const tailHub = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 8), rotorMat);
   tailHub.rotation.x = Math.PI / 2;
   tail.add(tailHub);
@@ -140,11 +151,12 @@ export function createUTairHelicopter() {
     pivot.add(blade);
     tail.add(pivot);
   }
+  boom.add(tail);
 
   inner.add(
-    fuselage, belly, upper, tankL, tankR, nose, chin, join, boomY, boomR, fin, stab,
-    engineL, engineR, intake, logo, logoR, code, codeR,
-    gearF, gearL, gearR, strutF, strutL, strutR, rotor, tail,
+    fuselage, belly, upper, tankL, tankR, nose, chin, boom,
+    engineL, engineR, intake, logo, logoR,
+    gearF, gearL, gearR, strutF, strutL, strutR, rotor,
   );
 
   group.userData.rotor = rotor;
@@ -152,13 +164,12 @@ export function createUTairHelicopter() {
   return group;
 }
 
-function boomBetween(mat, ax, ay, az, bx, by, bz, rStart, rEnd) {
-  const a = new THREE.Vector3(ax, ay, az);
-  const b = new THREE.Vector3(bx, by, bz);
-  const len = a.distanceTo(b);
+/** Cylinder along local −X (same as the fuselage capsule). rStart at x0, rEnd at x1. */
+function boomSeg(mat, x0, x1, rStart, rEnd) {
+  const len = Math.abs(x1 - x0);
   const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rEnd, rStart, len, RAD), mat);
-  mesh.position.lerpVectors(a, b, 0.5);
-  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.sub(a).normalize());
+  mesh.rotation.z = Math.PI / 2;
+  mesh.position.set((x0 + x1) * 0.5, 0, 0);
   return mesh;
 }
 

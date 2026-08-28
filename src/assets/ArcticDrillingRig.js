@@ -212,6 +212,15 @@ function buildGreyBase(parent, grey, greyDark, greyPanel, yellow, glass, steel, 
   boxAt(parent, grey, 0.4, hallY, -2.55, 10.8, hallH, 6.2);
   boxAt(parent, greyDark, 0.4, skidH + hallH + 0.12, -2.55, 11.1, 0.24, 6.5);
   boxAt(parent, greyPanel, 0.4, skidH + hallH + 0.28, -2.55, 10.4, 0.16, 5.9);
+
+  // Hall +Z stops at 0.55; yellow hub continues to ~2.3. From spawn (+X) that
+  // leftover volume is a hole through the lower third. Fill it as another bay.
+  boxAt(parent, grey, tx + 0.85, hallY, 1.44, 4.55, hallH, 1.78);
+  boxAt(parent, greyDark, tx + 0.85, skidH + hallH + 0.12, 1.44, 4.7, 0.2, 1.9);
+  const frontX = tx + 0.85 + 2.28;
+  for (let i = 0; i < 3; i += 1) {
+    boxAt(parent, glass, frontX, skidH + 2.35, 0.82 + i * 0.52, 0.08, 0.36, 0.4);
+  }
   boxAt(parent, greyDark, 0.4, skidH + hallH + 0.42, -2.55, 5.4, 0.22, 0.35, 0, 0, 0.12);
   boxAt(parent, greyDark, 0.4, skidH + hallH + 0.42, -2.55, 0.35, 0.22, 3.4, 0, 0, -0.12);
 

@@ -33,7 +33,10 @@ function toMap(canvas, colorSpace) {
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.anisotropy = WEAK ? 2 : 4;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = WEAK ? 4 : 8;
   tex.colorSpace = colorSpace;
   tex.needsUpdate = true;
   return tex;
@@ -43,39 +46,36 @@ function paintKind(kind, data, size) {
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
       const i = (y * size + x) * 4;
-      const n = fbm(x, y, 1);
-      const n2 = fbm(x + 17, y + 9, 40);
-      const streak = hash(x, y >> 3, 70);
+      const n = fbm(x >> 2, y >> 2, 1);
+      const n2 = fbm((x >> 2) + 17, (y >> 2) + 9, 40);
       let r = 228;
       let g = 228;
       let b = 228;
       if (kind === 'metal') {
-        const seam = (x % 32 < 1 || y % 24 < 1) ? 18 : 0;
-        const v = 210 + n * 38 - seam;
-        r = v;
-        g = v + 2;
-        b = v + 4;
-      } else if (kind === 'rust') {
-        r = 150 + n * 70;
-        g = 110 + n2 * 40;
-        b = 88 + streak * 24;
-      } else if (kind === 'snow') {
-        const dune = fbm(x >> 1, y >> 1, 3);
-        const v = 232 + n * 18 + dune * 8;
+        const v = 214 + n * 18;
         r = v;
         g = v + 1;
-        b = v + 4;
-      } else if (kind === 'rock') {
-        const v = 118 + n * 70;
-        r = v + 8;
-        g = v + 4;
-        b = v - 6;
-      } else {
-        const panel = (y % 28 < 1) ? 14 : 0;
-        const v = 214 + n * 36 - panel;
+        b = v + 3;
+      } else if (kind === 'rust') {
+        r = 148 + n * 36;
+        g = 112 + n2 * 22;
+        b = 90 + n * 10;
+      } else if (kind === 'snow') {
+        const dune = fbm(x >> 3, y >> 3, 3);
+        const v = 236 + n * 8 + dune * 6;
         r = v;
-        g = v - 2;
-        b = v - 6;
+        g = v + 1;
+        b = v + 3;
+      } else if (kind === 'rock') {
+        const v = 128 + n * 36;
+        r = v + 6;
+        g = v + 3;
+        b = v - 4;
+      } else {
+        const v = 220 + n * 14;
+        r = v;
+        g = v - 1;
+        b = v - 3;
       }
       data[i] = Math.max(0, Math.min(255, r));
       data[i + 1] = Math.max(0, Math.min(255, g));
@@ -86,7 +86,7 @@ function paintKind(kind, data, size) {
 }
 
 function buildKind(kind) {
-  const size = WEAK ? 64 : 160;
+  const size = kind === 'snow' ? (WEAK ? 96 : 160) : (WEAK ? 96 : 128);
   const albedoCanvas = makeCanvas(size, (data) => paintKind(kind, data, size));
   const roughCanvas = document.createElement('canvas');
   roughCanvas.width = size;
@@ -97,9 +97,9 @@ function buildKind(kind) {
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
       const i = (y * size + x) * 4;
-      const n = fbm(x + 3, y + 5, 90);
-      const v = 90 + ((src[i] + src[i + 1] + src[i + 2]) / 3 - 180) * 0.8 + n * 50;
-      const c = Math.max(40, Math.min(230, v));
+      const n = fbm((x >> 2) + 3, (y >> 2) + 5, 90);
+      const v = 110 + ((src[i] + src[i + 1] + src[i + 2]) / 3 - 180) * 0.35 + n * 18;
+      const c = Math.max(70, Math.min(200, v));
       rimg.data[i] = c;
       rimg.data[i + 1] = c;
       rimg.data[i + 2] = c;
@@ -110,12 +110,12 @@ function buildKind(kind) {
 
   const albedo = toMap(albedoCanvas, THREE.SRGBColorSpace);
   const roughness = toMap(roughCanvas, THREE.NoColorSpace);
-  const repeat = kind === 'snow' ? 18 : kind === 'rock' ? 10 : 5;
+  const repeat = kind === 'snow' ? 3.5 : kind === 'rock' ? 4 : 1.6;
   albedo.repeat.set(repeat, repeat);
   roughness.repeat.set(repeat, repeat);
 
   let normal = null;
-  if (!WEAK) {
+  if (!WEAK && kind !== 'snow' && kind !== 'paint') {
     const nCanvas = document.createElement('canvas');
     nCanvas.width = size;
     nCanvas.height = size;
@@ -132,8 +132,8 @@ function buildKind(kind) {
         const dx = lum(x + 1, y) - lum(x - 1, y);
         const dy = lum(x, y + 1) - lum(x, y - 1);
         const i = (y * size + x) * 4;
-        nimg.data[i] = Math.max(0, Math.min(255, 128 - dx * 380));
-        nimg.data[i + 1] = Math.max(0, Math.min(255, 128 - dy * 380));
+        nimg.data[i] = Math.max(0, Math.min(255, 128 - dx * 90));
+        nimg.data[i + 1] = Math.max(0, Math.min(255, 128 - dy * 90));
         nimg.data[i + 2] = 255;
         nimg.data[i + 3] = 255;
       }
@@ -159,8 +159,10 @@ export function textured(material, kind = 'paint', extra = {}) {
   material.roughnessMap = maps.roughness;
   if (maps.normal) {
     material.normalMap = maps.normal;
-    const n = extra.normalScale ?? (kind === 'snow' ? 0.18 : kind === 'rock' ? 0.55 : 0.32);
+    const n = extra.normalScale ?? (kind === 'rock' ? 0.28 : 0.12);
     material.normalScale = new THREE.Vector2(n, n);
+  } else {
+    material.normalMap = null;
   }
   material.needsUpdate = true;
   return material;

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { createUTairHelicopter } from '../assets/UTairHelicopter.js';
 import { createCrewBus } from '../assets/CrewBus.js';
-import { createFieldYard, tickFieldYard } from '../assets/FieldYard.js';
+import { createFieldYard } from '../assets/FieldYard.js';
 import { createPolarBear } from '../assets/PolarBear.js';
 import { textured } from '../assets/surfaceMaps.js';
 
@@ -96,31 +96,21 @@ export class ArcticWorld {
       roughness: 0.9,
       metalness: 0.04,
     }), 'snow');
-    const ice = textured(new THREE.MeshStandardMaterial({
-      color: 0xc5d5e0,
-      roughness: 0.62,
-      metalness: 0.08,
-    }), 'snow');
     const berm = textured(new THREE.MeshStandardMaterial({
       color: 0xf4f8fb,
       roughness: 0.98,
       metalness: 0,
     }), 'snow');
 
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(280, WEAK ? 32 : 48), snow);
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(280, WEAK ? 48 : 64), snow);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     group.add(ground);
 
-    const pad = new THREE.Mesh(new THREE.CircleGeometry(22, 28), packed);
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(22, 36), packed);
     pad.rotation.x = -Math.PI / 2;
     pad.position.set(0, 0.03, -CONFIG.exhibition.distance * 0.55);
     group.add(pad);
-
-    const ring = new THREE.Mesh(new THREE.RingGeometry(42, 78, 36), ice);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.02;
-    group.add(ring);
 
     const tracks = [
       [0, 0.04, -6, 3.2, 0.05, 28, 0],
@@ -163,7 +153,6 @@ export class ArcticWorld {
 
     if (!WEAK) {
       const crate = textured(new THREE.MeshStandardMaterial({ color: 0x6a4a22, roughness: 0.78, metalness: 0.08 }), 'paint');
-      const steel = textured(new THREE.MeshStandardMaterial({ color: 0x4a5056, roughness: 0.55, metalness: 0.35 }), 'metal');
       const spots = [
         [12.5, 0.55, -16, 1.8, 1.1, 1.4],
         [14.4, 0.45, -16.2, 1.4, 0.9, 1.2],
@@ -175,10 +164,6 @@ export class ArcticWorld {
         b.scale.set(sx, sy, sz);
         group.add(b);
       }
-      const tray = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.08, 0.35), steel);
-      tray.position.set(11, 0.22, -12);
-      tray.rotation.y = 0.4;
-      group.add(tray);
     }
 
     return group;
@@ -193,7 +178,7 @@ export class ArcticWorld {
       metalness: 0.02,
       fog: true,
       vertexColors: true,
-    }), 'snow', { normalScale: 0.28 });
+    }), 'snow', { normalScale: 0 });
 
     addRange(group, 8, -215, 340, 78, 52, 0.04, rock);
     addRange(group, -95, -198, 170, 58, 40, 0.18, rock);
@@ -506,7 +491,6 @@ export class ArcticWorld {
         leg.rotation.z = Math.sin(gait + (i < 2 ? 0 : Math.PI) + (i % 2) * 0.2) * 0.35;
       });
     }
-    tickFieldYard(this._yard, this._time);
   }
 }
 
