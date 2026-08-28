@@ -49,6 +49,7 @@ export class App {
     this.scanUI = new ScanUI();
     this.arUI = new ARUI({
       onBack: () => this.backToScan(),
+      onViewpoint: (id) => this.goToViewpoint(id),
     });
     this.errorUI = new ErrorUI();
     this.debugPanel = new DebugPanel();
@@ -89,6 +90,11 @@ export class App {
     this._rawScratchQuat = new THREE.Quaternion();
     this._rawMat = new THREE.Matrix4();
     this._rawVec = new THREE.Vector3();
+    this._raycaster = new THREE.Raycaster();
+    this._pointer = new THREE.Vector2();
+    this.session.renderer.domElement.addEventListener('pointerup', (event) => {
+      this.onExhibitionPointer(event);
+    });
 
     this.resetDebugPlacement();
     this.state.subscribe((value) => {
@@ -317,12 +323,43 @@ export class App {
     this.exhibition.placeStatic();
     this.anchor.bindExhibition(this.exhibition.anchor);
     if (this.cameraWanted) this.worldTracking.enable();
+    this.arUI.setViewpoints(this.exhibition.viewpoints);
+    this.arUI.setActiveViewpoint('front');
     debugState.placementStatus = 'FIXED';
     debugState.placementMode = 'EXHIBITION';
     debugState.modelTransformUpdates = this.exhibition.transformUpdates;
     debugState.modelMode = 'WORLD LOCKED';
     debugState.anchor = 'LOCKED';
     arLog('Exhibition model placed and world-locked');
+  }
+
+  goToViewpoint(id) {
+    const view = this.exhibition.getViewpoint(id);
+    if (!view) return;
+    if (!this.worldTracking.enabled) {
+      this.resetCameraForExhibition();
+      this.session.camera.position.copy(view.position);
+      this.session.camera.updateMatrixWorld(true);
+    } else {
+      this.worldTracking.teleportTo(view.position);
+    }
+    this.arUI.setActiveViewpoint(id);
+    arLog(`Viewpoint ${id}`);
+  }
+
+  onExhibitionPointer(event) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (!this.state.is(STATES.EXHIBITION) || this.transitioning) return;
+    if (!this.exhibition.pads) return;
+    const canvas = this.session.renderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    this._pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this._pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    this._raycaster.setFromCamera(this._pointer, this.session.camera);
+    const hits = this._raycaster.intersectObjects(this.exhibition.pads.children, true);
+    const id = hits[0]?.object?.userData?.viewpointId;
+    if (id) this.goToViewpoint(id);
   }
 
   resetCameraToOrigin() {

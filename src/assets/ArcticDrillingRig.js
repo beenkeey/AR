@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
+import { textured } from './surfaceMaps.js';
+import { createRoofCrew } from './CrewFigures.js';
 
 /**
  * Reconstructs the physical desk model from the photo set
@@ -30,13 +32,17 @@ const _size = new THREE.Vector3();
 const WEAK = CONFIG.performance.weak;
 
 function mat(color, metalness, roughness, extra = {}) {
-  return new THREE.MeshStandardMaterial({
+  const material = new THREE.MeshStandardMaterial({
     color,
     metalness,
     roughness,
     side: extra.side ?? THREE.FrontSide,
     ...extra,
   });
+  if (!extra.transparent && metalness < 0.5) {
+    textured(material, metalness >= 0.22 ? 'metal' : 'paint');
+  }
+  return material;
 }
 
 function mesh(geo, material, parent) {
@@ -212,6 +218,9 @@ function buildGreyBase(parent, grey, greyDark, greyPanel, yellow, glass, steel, 
   const wingH = 2.45;
   boxAt(parent, grey, -3.1, skidH + wingH * 0.5, 1.85, 6.4, wingH, 4.6);
   boxAt(parent, greyDark, -3.1, skidH + wingH + 0.1, 1.85, 6.6, 0.2, 4.8);
+  const crew = createRoofCrew();
+  crew.position.set(-3.1, skidH + wingH + 0.22, 1.85);
+  parent.add(crew);
 
   boxAt(parent, grey, 4.9, skidH + 1.15, -4.35, 4.2, 2.3, 2.6);
   boxAt(parent, greyDark, 4.9, skidH + 2.4, -4.35, 4.35, 0.18, 2.75);

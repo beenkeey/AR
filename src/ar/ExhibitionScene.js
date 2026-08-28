@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { ArcticWorld } from './ArcticWorld.js';
+import { createViewpointPad } from '../assets/FieldYard.js';
+import { tickRoofCrew } from '../assets/CrewFigures.js';
 
 /**
  * Static exhibition world.
@@ -30,6 +32,17 @@ export class ExhibitionScene {
     this.scene.add(new THREE.HemisphereLight(0xc5dceb, 0x8aa3b0, 0.78));
     const sun = new THREE.DirectionalLight(0xfff4e0, 1.22);
     sun.position.set(36, 88, 22);
+    if (!CONFIG.performance.disableHeavyEffects) {
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(1024, 1024);
+      sun.shadow.camera.near = 8;
+      sun.shadow.camera.far = 220;
+      sun.shadow.camera.left = -90;
+      sun.shadow.camera.right = 90;
+      sun.shadow.camera.top = 90;
+      sun.shadow.camera.bottom = -90;
+      sun.shadow.bias = -0.0008;
+    }
     this.scene.add(sun);
     const fill = new THREE.DirectionalLight(0xb9cfe0, 0.42);
     fill.position.set(-22, 18, -12);
@@ -56,10 +69,13 @@ export class ExhibitionScene {
     this._invWorld = new THREE.Matrix4();
     this._localPos = new THREE.Vector3();
     this.colliders = [];
+    this.viewpoints = [];
+    this.pads = null;
   }
 
   tick(now) {
     this.world?.tick(now);
+    tickRoofCrew(this.model, now * 0.001);
   }
 
   attach(model) {
@@ -119,6 +135,7 @@ export class ExhibitionScene {
     this.transformUpdates = 1;
     this._buildColliders();
     this._ensureIndustrialDetail();
+    this._placeViewpoints();
     this.cacheMaterials();
     this.setOpacity(0);
   }
@@ -204,6 +221,65 @@ export class ExhibitionScene {
     this.scaling = false;
     this.transformUpdates = 0;
     this.colliders = [];
+    this._clearViewpoints();
+  }
+
+  getViewpoint(id) {
+    return this.viewpoints.find((item) => item.id === id) || null;
+  }
+
+  _clearViewpoints() {
+    this.viewpoints = [];
+    if (this.pads?.parent) this.pads.parent.remove(this.pads);
+    this.pads = null;
+  }
+
+  _placeViewpoints() {
+    this._clearViewpoints();
+    this.anchor.updateMatrixWorld(true);
+    this._box.setFromObject(this.anchor);
+    this._box.getCenter(this._center);
+    this._box.getSize(this._size);
+    const cx = this._center.x;
+    const cz = this._center.z;
+    const eye = CONFIG.exhibition.eyeHeight;
+    const spawn = new THREE.Vector3(0, eye, 0);
+    const radius = Math.max(18, Math.hypot(spawn.x - cx, spawn.z - cz));
+    const baseAng = Math.atan2(spawn.x - cx, spawn.z - cz);
+    const ring = [
+      { id: 'front', label: 'Перед' },
+      { id: 'right', label: 'Справа' },
+      { id: 'back', label: 'Сзади' },
+      { id: 'left', label: 'Слева' },
+    ];
+    this.pads = new THREE.Group();
+    this.pads.name = 'ViewpointPads';
+    ring.forEach((item, i) => {
+      const a = baseAng + i * (Math.PI / 2);
+      const position = new THREE.Vector3(
+        cx + Math.sin(a) * radius,
+        eye,
+        cz + Math.cos(a) * radius,
+      );
+      this.viewpoints.push({ ...item, position });
+      const pad = createViewpointPad(item.id, item.label);
+      pad.position.set(position.x, 0.04, position.z);
+      this.pads.add(pad);
+    });
+    const balcony = new THREE.Vector3(
+      cx + this._size.x * 0.36,
+      this._box.min.y + this._size.y * 0.45,
+      cz + this._size.z * 0.16,
+    );
+    this.viewpoints.push({
+      id: 'balcony',
+      label: 'Балкон',
+      position: balcony,
+    });
+    const high = createViewpointPad('balcony', 'Балкон');
+    high.position.set(balcony.x, balcony.y - eye + 0.04, balcony.z);
+    this.pads.add(high);
+    this.scene.add(this.pads);
   }
 
   _buildColliders() {

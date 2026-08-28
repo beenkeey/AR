@@ -1,8 +1,13 @@
 import * as THREE from 'three';
+import { CONFIG } from '../config.js';
+import { textured } from './surfaceMaps.js';
+
+const WEAK = CONFIG.performance.weak;
+const RAD = WEAK ? 8 : 14;
+const CAP = WEAK ? 3 : 5;
 
 /**
- * Mi-8 / Mi-171 styled transport heli. Paint matches фото/вертолет.jpg:
- * yellow fuselage and tanks, black upper deck, red tail, UTair / RA-22619.
+ * Mi-8 / Mi-171 transport. Rounded capsules/spheres, not boxes.
  * Nose is local +X. Object3D.lookAt aims +Z, so callers yaw the wrapper.
  */
 export function createUTairHelicopter() {
@@ -21,83 +26,103 @@ export function createUTairHelicopter() {
   const utair = makeLabelTexture('UTair', '#143c8c', '#f0c31a', 512, 160, 92);
   const tailCode = makeLabelTexture('RA-22619', '#111111', '#e31b23', 640, 140, 78);
 
-  const fuselage = new THREE.Mesh(new THREE.BoxGeometry(2.55, 0.72, 1.02), yellow);
-  fuselage.position.y = -0.04;
-  const upper = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.42, 0.98), black);
-  upper.position.set(0.12, 0.48, 0);
-  const tankL = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.55, 10), yellow);
+  const fuselage = new THREE.Mesh(new THREE.CapsuleGeometry(0.46, 1.55, CAP, RAD), yellow);
+  fuselage.rotation.z = Math.PI / 2;
+  fuselage.position.set(0.05, 0.02, 0);
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.42, RAD, 8), yellow);
+  belly.position.set(0.1, -0.18, 0);
+  belly.scale.set(1.55, 0.55, 1.05);
+
+  const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 1.05, CAP, RAD), black);
+  upper.rotation.z = Math.PI / 2;
+  upper.position.set(0.08, 0.46, 0);
+  upper.scale.set(1, 0.85, 1.05);
+
+  const tankL = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 1.15, CAP, RAD), yellow);
   tankL.rotation.z = Math.PI / 2;
-  tankL.position.set(0.05, -0.18, 0.62);
+  tankL.position.set(0.05, -0.12, 0.58);
   const tankR = tankL.clone();
-  tankR.position.z = -0.62;
-  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.58, 0.84), glass);
-  nose.position.set(1.42, 0.12, 0);
-  const chin = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.32, 0.78), yellow);
-  chin.position.set(1.46, -0.28, 0);
-  const boomY = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.22, 0.22), yellow);
-  boomY.position.set(-1.55, 0.18, 0);
-  boomY.rotation.z = 0.06;
-  const boomR = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.22, 0.22), red);
-  boomR.position.set(-2.68, 0.28, 0);
-  boomR.rotation.z = 0.08;
-  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.92, 0.48), red);
-  fin.position.set(-3.28, 0.68, 0);
-  const stab = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.95), red);
-  stab.position.set(-3.22, 0.32, 0);
-  const engineL = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.34, 0.34), black);
-  engineL.position.set(0.22, 0.72, 0.28);
+  tankR.position.z = -0.58;
+
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.38, RAD, 10), glass);
+  nose.position.set(1.28, 0.14, 0);
+  nose.scale.set(1.15, 0.85, 0.95);
+  const chin = new THREE.Mesh(new THREE.SphereGeometry(0.28, RAD, 8), yellow);
+  chin.position.set(1.22, -0.18, 0);
+  chin.scale.set(1.2, 0.7, 1.05);
+
+  const boomY = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.14, 1.25, RAD), yellow);
+  boomY.rotation.z = Math.PI / 2 + 0.05;
+  boomY.position.set(-1.45, 0.16, 0);
+  const boomR = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 1.45, RAD), red);
+  boomR.rotation.z = Math.PI / 2 + 0.07;
+  boomR.position.set(-2.62, 0.28, 0);
+
+  const fin = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.72, 3, 8), red);
+  fin.position.set(-3.28, 0.62, 0);
+  fin.scale.set(0.55, 1, 1.8);
+  const stab = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.85, 3, 8), red);
+  stab.rotation.x = Math.PI / 2;
+  stab.position.set(-3.2, 0.32, 0);
+
+  const engineL = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 0.52, 3, 8), black);
+  engineL.rotation.z = Math.PI / 2;
+  engineL.position.set(0.18, 0.68, 0.22);
   const engineR = engineL.clone();
-  engineR.position.z = -0.28;
-  const intake = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.72), black);
-  intake.position.set(0.62, 0.78, 0);
+  engineR.position.z = -0.22;
+  const intake = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), black);
+  intake.position.set(0.58, 0.74, 0);
+  intake.scale.set(1.1, 0.65, 1.6);
 
   const logo = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.95, 0.28),
+    new THREE.PlaneGeometry(0.85, 0.24),
     new THREE.MeshBasicMaterial({ map: utair, transparent: true }),
   );
-  logo.position.set(0.15, 0.18, 0.52);
+  logo.position.set(0.12, 0.16, 0.47);
   const logoR = logo.clone();
-  logoR.position.z = -0.52;
+  logoR.position.z = -0.47;
   logoR.rotation.y = Math.PI;
   const code = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.85, 0.18),
+    new THREE.PlaneGeometry(0.78, 0.16),
     new THREE.MeshBasicMaterial({ map: tailCode, transparent: true }),
   );
-  code.position.set(-2.55, 0.3, 0.12);
+  code.position.set(-2.5, 0.3, 0.09);
   const codeR = code.clone();
-  codeR.position.z = -0.12;
+  codeR.position.z = -0.09;
   codeR.rotation.y = Math.PI;
 
   for (let i = 0; i < 6; i += 1) {
-    const win = new THREE.Mesh(new THREE.CircleGeometry(0.08, 10), glass);
-    win.position.set(0.55 - i * 0.28, 0.08, 0.515);
+    const win = new THREE.Mesh(new THREE.CircleGeometry(0.075, 12), glass);
+    win.position.set(0.5 - i * 0.26, 0.1, 0.455);
     inner.add(win);
     const winR = win.clone();
-    winR.position.z = -0.515;
+    winR.position.z = -0.455;
     winR.rotation.y = Math.PI;
     inner.add(winR);
   }
 
-  const gearF = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.18, 8), rubber);
-  gearF.position.set(1.12, -0.72, 0);
-  gearF.rotation.z = Math.PI / 2;
+  const gearF = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), rubber);
+  gearF.position.set(1.05, -0.68, 0);
+  gearF.scale.set(1.3, 0.7, 1.3);
   const gearL = gearF.clone();
-  gearL.position.set(-0.55, -0.72, 0.48);
+  gearL.position.set(-0.5, -0.68, 0.46);
   const gearR = gearF.clone();
-  gearR.position.set(-0.55, -0.72, -0.48);
-  const strutF = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.32, 0.07), black);
-  strutF.position.set(1.12, -0.55, 0);
+  gearR.position.set(-0.5, -0.68, -0.46);
+  const strutF = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.22, 2, 6), black);
+  strutF.position.set(1.05, -0.5, 0);
   const strutL = strutF.clone();
-  strutL.position.set(-0.55, -0.55, 0.48);
+  strutL.position.set(-0.5, -0.5, 0.46);
   const strutR = strutF.clone();
-  strutR.position.set(-0.55, -0.55, -0.48);
+  strutR.position.set(-0.5, -0.5, -0.46);
 
   const rotor = new THREE.Group();
-  rotor.position.set(0.08, 0.98, 0);
-  rotor.add(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.12, 8), rotorMat));
+  rotor.position.set(0.06, 0.96, 0);
+  rotor.add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.1, 10), rotorMat));
   for (let i = 0; i < 5; i += 1) {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.035, 0.18), rotorMat);
-    blade.position.x = 1.7;
+    const blade = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 3.15, 2, 6), rotorMat);
+    blade.rotation.z = Math.PI / 2;
+    blade.scale.z = 0.45;
+    blade.position.x = 1.62;
     const pivot = new THREE.Group();
     pivot.rotation.y = (i / 5) * Math.PI * 2;
     pivot.add(blade);
@@ -105,13 +130,13 @@ export function createUTairHelicopter() {
   }
 
   const tail = new THREE.Group();
-  tail.position.set(-3.32, 0.88, 0.26);
-  const tailHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.08, 6), rotorMat);
-  tailHub.rotation.x = Math.PI / 2;
+  tail.position.set(-3.3, 0.86, 0.22);
+  const tailHub = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), rotorMat);
   tail.add(tailHub);
   for (let i = 0; i < 3; i += 1) {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.03, 0.08), rotorMat);
-    blade.position.x = 0.36;
+    const blade = new THREE.Mesh(new THREE.CapsuleGeometry(0.018, 0.62, 2, 6), rotorMat);
+    blade.rotation.z = Math.PI / 2;
+    blade.position.x = 0.32;
     const pivot = new THREE.Group();
     pivot.rotation.z = (i / 3) * Math.PI * 2;
     pivot.add(blade);
@@ -119,7 +144,7 @@ export function createUTairHelicopter() {
   }
 
   inner.add(
-    fuselage, upper, tankL, tankR, nose, chin, boomY, boomR, fin, stab,
+    fuselage, belly, upper, tankL, tankR, nose, chin, boomY, boomR, fin, stab,
     engineL, engineR, intake, logo, logoR, code, codeR,
     gearF, gearL, gearR, strutF, strutL, strutR, rotor, tail,
   );
@@ -130,7 +155,9 @@ export function createUTairHelicopter() {
 }
 
 function std(color, metalness, roughness) {
-  return new THREE.MeshStandardMaterial({ color, metalness, roughness });
+  const material = new THREE.MeshStandardMaterial({ color, metalness, roughness });
+  textured(material, metalness > 0.25 ? 'metal' : 'paint');
+  return material;
 }
 
 function makeLabelTexture(text, fg, bg, w, h, fontPx) {

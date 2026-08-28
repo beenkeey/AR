@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { createUTairHelicopter } from '../assets/UTairHelicopter.js';
 import { createCrewBus } from '../assets/CrewBus.js';
+import { createFieldYard, tickFieldYard } from '../assets/FieldYard.js';
+import { createPolarBear } from '../assets/PolarBear.js';
+import { textured } from '../assets/surfaceMaps.js';
 
 const WEAK = CONFIG.performance.weak;
 const FOG = 0xa9c7dc;
@@ -17,24 +20,30 @@ export class ArcticWorld {
   constructor(scene) {
     this.scene = scene;
     this.helis = [];
+    this.bears = [];
     this._aurora = [];
+    this._yard = null;
     this._time = 0;
     this._build();
   }
 
   _build() {
     this.scene.background = new THREE.Color(FOG);
-    this.scene.fog = new THREE.Fog(FOG, 70, 240);
+    this.scene.fog = new THREE.Fog(FOG, 95, 340);
 
     this.scene.add(this._sky());
     this.scene.add(this._ground());
     this._addLandscape();
-    this._addHelicopter();
+    this._addHelicopters();
+    this._addBears();
     this._addBus();
+    this._addRearField();
+    this._yard = createFieldYard();
+    this.scene.add(this._yard);
   }
 
   _sky() {
-    const geo = new THREE.SphereGeometry(260, WEAK ? 20 : 32, WEAK ? 14 : 20);
+    const geo = new THREE.SphereGeometry(400, WEAK ? 20 : 32, WEAK ? 14 : 20);
     const mat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
@@ -77,29 +86,30 @@ export class ArcticWorld {
     const group = new THREE.Group();
     group.name = 'SnowField';
 
-    const snow = new THREE.MeshStandardMaterial({
+    const snow = textured(new THREE.MeshStandardMaterial({
       color: 0xeef5f8,
       roughness: 0.97,
       metalness: 0.02,
-    });
-    const packed = new THREE.MeshStandardMaterial({
+    }), 'snow');
+    const packed = textured(new THREE.MeshStandardMaterial({
       color: 0xd5e0e8,
       roughness: 0.9,
       metalness: 0.04,
-    });
-    const ice = new THREE.MeshStandardMaterial({
+    }), 'snow');
+    const ice = textured(new THREE.MeshStandardMaterial({
       color: 0xc5d5e0,
       roughness: 0.62,
       metalness: 0.08,
-    });
-    const berm = new THREE.MeshStandardMaterial({
+    }), 'snow');
+    const berm = textured(new THREE.MeshStandardMaterial({
       color: 0xf4f8fb,
       roughness: 0.98,
       metalness: 0,
-    });
+    }), 'snow');
 
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(190, WEAK ? 32 : 48), snow);
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(280, WEAK ? 32 : 48), snow);
     ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
     group.add(ground);
 
     const pad = new THREE.Mesh(new THREE.CircleGeometry(22, 28), packed);
@@ -152,8 +162,8 @@ export class ArcticWorld {
     }
 
     if (!WEAK) {
-      const crate = new THREE.MeshStandardMaterial({ color: 0x6a4a22, roughness: 0.78, metalness: 0.08 });
-      const steel = new THREE.MeshStandardMaterial({ color: 0x4a5056, roughness: 0.55, metalness: 0.35 });
+      const crate = textured(new THREE.MeshStandardMaterial({ color: 0x6a4a22, roughness: 0.78, metalness: 0.08 }), 'paint');
+      const steel = textured(new THREE.MeshStandardMaterial({ color: 0x4a5056, roughness: 0.55, metalness: 0.35 }), 'metal');
       const spots = [
         [12.5, 0.55, -16, 1.8, 1.1, 1.4],
         [14.4, 0.45, -16.2, 1.4, 0.9, 1.2],
@@ -177,44 +187,22 @@ export class ArcticWorld {
   _addLandscape() {
     const group = new THREE.Group();
     group.name = 'Horizon';
-    const rock = new THREE.MeshStandardMaterial({
-      color: 0x7a8a96,
-      roughness: 0.94,
-      metalness: 0.03,
-      flatShading: true,
+    const rock = textured(new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.96,
+      metalness: 0.02,
       fog: true,
-      side: THREE.FrontSide,
-      depthWrite: true,
-      depthTest: true,
-    });
-    const snow = new THREE.MeshStandardMaterial({
-      color: 0xf3f7fa,
-      roughness: 0.97,
-      metalness: 0.01,
-      flatShading: true,
-      fog: true,
-      side: THREE.FrontSide,
-      depthWrite: true,
-      depthTest: true,
-    });
+      vertexColors: true,
+    }), 'snow', { normalScale: 0.28 });
 
-    const clusters = [
-      { x: -12, z: -128, peaks: [[0, 26, 18], [-16, 18, 13], [14, 20, 12]] },
-      { x: 58, z: -112, peaks: [[0, 20, 14], [12, 14, 10], [-11, 16, 11]] },
-      { x: -78, z: -96, peaks: [[0, 18, 13], [10, 12, 9]] },
-      { x: 102, z: -62, peaks: [[0, 16, 11], [-9, 11, 8]] },
-      { x: -108, z: 38, peaks: [[0, 17, 12], [11, 12, 8]] },
-      { x: 118, z: 22, peaks: [[0, 15, 11], [-8, 11, 8]] },
-      { x: -36, z: 124, peaks: [[0, 19, 13], [14, 13, 9]] },
-      { x: 48, z: 118, peaks: [[0, 16, 12]] },
-    ];
-    const count = WEAK ? 5 : clusters.length;
-    for (let i = 0; i < count; i += 1) {
-      const c = clusters[i];
-      for (let p = 0; p < c.peaks.length; p += 1) {
-        const [dx, h, r] = c.peaks[p];
-        addPeak(group, c.x + dx, c.z + p * 6, h, r, rock, snow);
-      }
+    addRange(group, 8, -215, 340, 78, 52, 0.04, rock);
+    addRange(group, -95, -198, 170, 58, 40, 0.18, rock);
+    addRange(group, 118, -192, 180, 56, 38, -0.16, rock);
+    addRange(group, 0, 88, 210, 52, 24, Math.PI, rock);
+    if (!WEAK) {
+      addRange(group, -210, -20, 150, 52, 30, Math.PI * 0.48, rock);
+      addRange(group, 215, -8, 150, 50, 28, -Math.PI * 0.5, rock);
+      addRange(group, 10, 210, 260, 64, 36, Math.PI, rock);
     }
     this.scene.add(group);
   }
@@ -280,8 +268,14 @@ export class ArcticWorld {
     }
   }
 
-  _addHelicopter() {
-    const pose = CONFIG.exhibition.heli;
+  _addHelicopters() {
+    const poses = [CONFIG.exhibition.heli, ...(CONFIG.exhibition.heliFar || [])];
+    for (const pose of poses) {
+      this._spawnHeli(pose);
+    }
+  }
+
+  _spawnHeli(pose) {
     const heli = createUTairHelicopter();
     heli.scale.setScalar(pose.scale);
     this.scene.add(heli);
@@ -303,6 +297,35 @@ export class ArcticWorld {
     this.helis.push(flyer);
   }
 
+  _addBears() {
+    const routes = WEAK
+      ? [
+        { scale: 2.3, duration: 52, waypoints: [[-70, 0, -168], [-40, 0, -182], [-12, 0, -170], [-48, 0, -156]] },
+        { scale: 2.0, duration: 64, waypoints: [[86, 0, -162], [108, 0, -148], [84, 0, -136], [64, 0, -154]] },
+      ]
+      : [
+        { scale: 2.45, duration: 52, waypoints: [[-70, 0, -168], [-40, 0, -182], [-12, 0, -170], [-48, 0, -156]] },
+        { scale: 2.1, duration: 64, waypoints: [[86, 0, -162], [108, 0, -148], [84, 0, -136], [64, 0, -154]] },
+        { scale: 1.9, duration: 78, waypoints: [[-170, 0, -40], [-184, 0, -8], [-168, 0, 22], [-152, 0, -18]] },
+      ];
+    for (const pose of routes) {
+      const bear = createPolarBear();
+      bear.scale.setScalar(pose.scale);
+      this.scene.add(bear);
+      const flyer = {
+        group: bear,
+        legs: bear.userData.legs || [],
+        points: pose.waypoints.map((p) => new THREE.Vector3(p[0], p[1], p[2])),
+        duration: pose.duration,
+        _pos: new THREE.Vector3(),
+        _next: new THREE.Vector3(),
+        _q: new THREE.Quaternion(),
+        _aimed: false,
+      };
+      this.bears.push(flyer);
+    }
+  }
+
   _addBus() {
     const pose = CONFIG.exhibition.bus;
     const bus = createCrewBus();
@@ -310,6 +333,121 @@ export class ArcticWorld {
     bus.rotation.y = pose.yaw;
     bus.scale.setScalar(pose.scale);
     this.scene.add(bus);
+  }
+
+  _addRearField() {
+    const group = new THREE.Group();
+    group.name = 'RearField';
+    const snow = textured(new THREE.MeshStandardMaterial({
+      color: 0xf4f8fb,
+      roughness: 0.97,
+      metalness: 0.02,
+    }), 'snow');
+    const packed = textured(new THREE.MeshStandardMaterial({
+      color: 0xd8e2e8,
+      roughness: 0.9,
+      metalness: 0.04,
+    }), 'snow');
+    const yellow = textured(new THREE.MeshStandardMaterial({
+      color: 0xe0b22a,
+      roughness: 0.55,
+      metalness: 0.08,
+    }), 'paint');
+    const grey = textured(new THREE.MeshStandardMaterial({
+      color: 0x7a828a,
+      roughness: 0.55,
+      metalness: 0.28,
+    }), 'metal');
+    const dark = textured(new THREE.MeshStandardMaterial({
+      color: 0x2a2e32,
+      roughness: 0.5,
+      metalness: 0.35,
+    }), 'metal');
+
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(8.5, 28), packed);
+    pad.rotation.x = -Math.PI / 2;
+    pad.position.set(2, 0.04, 34);
+    group.add(pad);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(7.2, 7.8, 28),
+      new THREE.MeshBasicMaterial({ color: 0xf3c43a, side: THREE.DoubleSide }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(2, 0.06, 34);
+    group.add(ring);
+    const hBar = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.04, 0.45), yellow);
+    hBar.position.set(2, 0.07, 34);
+    group.add(hBar);
+    const hL = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.04, 2.6), yellow);
+    hL.position.set(0.7, 0.07, 34);
+    group.add(hL);
+    const hR = hL.clone();
+    hR.position.x = 3.3;
+    group.add(hR);
+
+    const mods = [
+      [-10, 22, 0.35],
+      [-6.5, 26, -0.2],
+      [14, 24, 0.5],
+    ];
+    for (const [x, z, yaw] of mods) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(6.4, 2.6, 2.6), yellow);
+      m.position.set(x, 1.35, z);
+      m.rotation.y = yaw;
+      group.add(m);
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(6.55, 0.12, 2.7), dark);
+      roof.position.set(x, 2.7, z);
+      roof.rotation.y = yaw;
+      group.add(roof);
+    }
+
+    for (const [x, z] of [[-12, 20], [16, 22], [0, 42]]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 6.2, 8), dark);
+      pole.position.set(x, 3.1, z);
+      group.add(pole);
+      const lamp = new THREE.Mesh(
+        new THREE.SphereGeometry(0.22, 8, 6),
+        new THREE.MeshStandardMaterial({
+          color: 0xffe08a,
+          emissive: 0xffc056,
+          emissiveIntensity: 0.9,
+          roughness: 0.4,
+        }),
+      );
+      lamp.position.set(x, 6.2, z);
+      group.add(lamp);
+      const light = new THREE.PointLight(0xffd090, 1.4, 18, 1.8);
+      light.position.set(x, 6.0, z);
+      group.add(light);
+    }
+
+    for (const [x, z] of [[8, 28], [9.4, 28.4]]) {
+      const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 2.4, 12), grey);
+      tank.position.set(x, 1.2, z);
+      group.add(tank);
+    }
+
+    const berms = [
+      [-18, 1.1, 18, 10, 2.0, 6],
+      [20, 0.9, 20, 9, 1.7, 7],
+      [4, 0.7, 48, 14, 1.4, 8],
+      [-8, 0.8, 40, 11, 1.6, 6],
+    ];
+    const sph = new THREE.SphereGeometry(1, 8, 6);
+    for (const [x, y, z, sx, sy, sz] of berms) {
+      const d = new THREE.Mesh(sph, snow);
+      d.position.set(x, y, z);
+      d.scale.set(sx, sy, sz);
+      group.add(d);
+    }
+
+    const bus2 = createCrewBus();
+    bus2.position.set(-16, 0, 30);
+    bus2.rotation.y = 1.15;
+    bus2.scale.setScalar(1.35);
+    group.add(bus2);
+
+    this.scene.add(group);
   }
 
   _setHeliPose(heli, timeSec) {
@@ -351,6 +489,23 @@ export class ArcticWorld {
       if (heli.rotor) heli.rotor.rotation.y += 0.62;
       if (heli.tail) heli.tail.rotation.x += 0.95;
     }
+    for (const bear of this.bears) {
+      sampleClosedSpline(bear.points, this._time / bear.duration, bear._pos);
+      bear.group.position.copy(bear._pos);
+      bear.group.position.y = 0;
+      sampleClosedSpline(bear.points, this._time / bear.duration + 0.02, bear._next);
+      _heliFwd.subVectors(bear._next, bear._pos);
+      _heliFwd.y = 0;
+      if (_heliFwd.lengthSq() > 1e-6) {
+        _heliLook.set(bear.group.position.x + _heliFwd.x, 0, bear.group.position.z + _heliFwd.z);
+        bear.group.lookAt(_heliLook);
+      }
+      const gait = this._time * 6.2;
+      bear.legs.forEach((leg, i) => {
+        leg.rotation.z = Math.sin(gait + (i < 2 ? 0 : Math.PI) + (i % 2) * 0.2) * 0.35;
+      });
+    }
+    tickFieldYard(this._yard, this._time);
   }
 }
 
@@ -379,15 +534,50 @@ function catmullRom(p0, p1, p2, p3, t, out) {
   return out;
 }
 
-function addPeak(group, x, z, height, radius, rock, snow) {
-  const sides = WEAK ? 8 : 12;
-  const body = new THREE.Mesh(new THREE.ConeGeometry(radius, height, sides, 1), rock);
-  body.position.set(x, height * 0.5, z);
-  body.rotation.y = x * 0.02 + z * 0.01;
-  group.add(body);
-  const capH = height * 0.28;
-  const cap = new THREE.Mesh(new THREE.ConeGeometry(radius * 0.38, capH, sides, 1), snow);
-  cap.position.set(x, height - capH * 0.42, z);
-  cap.rotation.y = body.rotation.y + 0.15;
-  group.add(cap);
+function hashNoise(x, z) {
+  const n = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+function addRange(group, cx, cz, width, depth, peak, yaw, material) {
+  const sw = WEAK ? 22 : 42;
+  const sd = WEAK ? 10 : 18;
+  const geo = new THREE.PlaneGeometry(width, depth, sw, sd);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const rockC = new THREE.Color(0x9aa8b2);
+  const midC = new THREE.Color(0xdbe4ea);
+  const snowC = new THREE.Color(0xf7fafc);
+  const tmp = new THREE.Color();
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const nx = x / Math.max(width * 0.5, 1);
+    const nz = z / Math.max(depth * 0.5, 1);
+    const end = Math.cos(Math.min(1, Math.abs(nx)) * Math.PI * 0.5);
+    const ridge = Math.exp(-nz * nz * 2.2);
+    const n = hashNoise((x + cx) * 0.035, (z + cz) * 0.04);
+    const n2 = hashNoise((x + cx) * 0.1, (z + cz) * 0.08);
+    const n3 = hashNoise((x + cx) * 0.22, (z + cz) * 0.18);
+    let h = peak * Math.max(0, end) * ridge * (0.38 + n * 0.62);
+    h += (n2 - 0.5) * peak * 0.2 * ridge;
+    h += Math.sin(nx * 6.4 + n * 5.0) * peak * 0.1 * ridge * end;
+    h += n3 * peak * 0.05 * ridge;
+    h = Math.max(0, h);
+    pos.setY(i, h);
+    const t = THREE.MathUtils.smoothstep(h / peak, 0.08, 0.38);
+    tmp.copy(rockC).lerp(midC, t);
+    tmp.lerp(snowC, THREE.MathUtils.smoothstep(h / peak, 0.16, 0.48) * (0.82 + n2 * 0.18));
+    colors[i * 3] = tmp.r;
+    colors[i * 3 + 1] = tmp.g;
+    colors[i * 3 + 2] = tmp.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.position.set(cx, 0, cz);
+  mesh.rotation.y = yaw;
+  mesh.receiveShadow = true;
+  group.add(mesh);
 }

@@ -33,6 +33,10 @@ export class ARSession {
     this.renderer.toneMappingExposure = 1.08;
     this.renderer.dithering = true;
     this.renderer.domElement.className = 'ar-canvas';
+    if (!CONFIG.performance.disableHeavyEffects) {
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
 
     this.container.appendChild(this.video);
     this.container.appendChild(this.renderer.domElement);

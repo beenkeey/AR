@@ -88,7 +88,7 @@ export const CONFIG = {
     scaleMs: 1000,
     cameraFov: 66,
     cameraNear: 0.08,
-    cameraFar: 300,
+    cameraFar: 420,
     walkSpeed: 1.15,
     stepMeters: 0.62,
     stepAccel: 1.35,
@@ -112,7 +112,29 @@ export const CONFIG = {
         [32, 65, -36],
       ],
     },
-    bus: { x: 22, y: 0, z: -10, yaw: Math.PI / 2, scale: 1 },
+    heliFar: [
+      {
+        scale: 1.35,
+        duration: 88,
+        waypoints: [
+          [96, 38, -118],
+          [48, 44, -148],
+          [-18, 40, -128],
+          [36, 46, -96],
+        ],
+      },
+      {
+        scale: 1.05,
+        duration: 114,
+        waypoints: [
+          [-92, 34, 86],
+          [-128, 40, 28],
+          [-86, 32, -36],
+          [-48, 38, 52],
+        ],
+      },
+    ],
+    bus: { x: 18, y: 0, z: 16, yaw: -0.55, scale: 1.45 },
   },
   hyperspace: {
     durationMs: 1900,

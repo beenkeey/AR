@@ -70,6 +70,9 @@ export class WorldTracking {
     this._lastNow = 0;
     this._smoothed = false;
     this._holdingLost = false;
+    this._alvaTranslation = true;
+    this._skipCollide = false;
+    this._spawnRigQuat = new THREE.Quaternion();
   }
 
   get status() {
@@ -102,7 +105,10 @@ export class WorldTracking {
     this.lastDelta.set(0, 0, 0);
     this._appliedPos.set(0, 0, 0);
     this._lastConsumedRelPos.set(0, 0, 0);
+    this._alvaTranslation = true;
+    this._skipCollide = false;
     this._mountCamera();
+    this._spawnRigQuat.copy(this.rig.quaternion);
     this._baseQuat.copy(this.camera.quaternion);
     this._lostQuat.copy(this.camera.quaternion);
     this._targetQuat.copy(this.camera.quaternion);
@@ -124,6 +130,8 @@ export class WorldTracking {
     this.lastDelta.set(0, 0, 0);
     this._appliedPos.set(0, 0, 0);
     this._lastConsumedRelPos.set(0, 0, 0);
+    this._alvaTranslation = true;
+    this._skipCollide = false;
   }
 
   _mountCamera() {
@@ -260,11 +268,46 @@ export class WorldTracking {
     this._prevRelPos.copy(this._relPos);
     this._prevRelQuat.copy(this._relQuat);
 
-    this._consumeHorizontalDelta();
+    if (this._alvaTranslation) this._consumeHorizontalDelta();
     this._targetPos.copy(this._appliedPos);
     this._applyGyroLook();
     this.usingLastPose = false;
     this._commitCamera(dt);
+    return true;
+  }
+
+  /**
+   * Move CameraRig to a world viewpoint. Position only — spawn pitch stays,
+   * gyro keeps the current look. Alva XZ is frozen after a jump.
+   */
+  teleportTo(worldPos) {
+    if (!this.enabled) return false;
+    const camera = this.camera;
+    this._alvaTranslation = false;
+    this._skipCollide = worldPos.y > CONFIG.exhibition.eyeHeight + 1.4;
+    this._hasPending = false;
+    this._holdingLost = false;
+    this._appliedPos.set(0, 0, 0);
+    this._targetPos.set(0, 0, 0);
+    this._holdPos.set(0, 0, 0);
+    this._smoothPos.set(0, 0, 0);
+    this._lastConsumedRelPos.copy(this._relPos);
+    this._smoothed = false;
+
+    this.rig.matrixAutoUpdate = true;
+    this.rig.position.copy(worldPos);
+    this.rig.quaternion.copy(this._spawnRigQuat);
+    this.rig.up.set(0, 1, 0);
+    this.rig.updateMatrix();
+    this.rig.matrixAutoUpdate = false;
+    this.rig.matrix.compose(this.rig.position, this.rig.quaternion, this.rig.scale);
+    this.rig.updateMatrixWorld(true);
+
+    camera.position.set(0, 0, 0);
+    camera.scale.set(1, 1, 1);
+    camera.updateMatrix();
+    camera.updateMatrixWorld(true);
+    this._prevPos.setFromMatrixPosition(camera.matrixWorld);
     return true;
   }
 
@@ -352,7 +395,7 @@ export class WorldTracking {
     camera.updateMatrix();
     camera.updateMatrixWorld(true);
 
-    if (this.collide) {
+    if (this.collide && !this._skipCollide) {
       camera.getWorldPosition(this._scratchVec);
       this.collide(this._scratchVec);
       this._scratchMat.copy(this.rig.matrixWorld).invert();
