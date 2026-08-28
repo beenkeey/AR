@@ -3,7 +3,6 @@ import { CONFIG } from '../config.js';
 import { createUTairHelicopter } from '../assets/UTairHelicopter.js';
 import { createCrewBus } from '../assets/CrewBus.js';
 import { createFieldYard } from '../assets/FieldYard.js';
-import { createPolarBear } from '../assets/PolarBear.js';
 import { textured } from '../assets/surfaceMaps.js';
 
 const WEAK = CONFIG.performance.weak;
@@ -20,7 +19,6 @@ export class ArcticWorld {
   constructor(scene) {
     this.scene = scene;
     this.helis = [];
-    this.bears = [];
     this._aurora = [];
     this._yard = null;
     this._time = 0;
@@ -35,7 +33,6 @@ export class ArcticWorld {
     this.scene.add(this._ground());
     this._addLandscape();
     this._addHelicopters();
-    this._addBears();
     this._addBus();
     this._addRearField();
     this._yard = createFieldYard();
@@ -282,36 +279,6 @@ export class ArcticWorld {
     this.helis.push(flyer);
   }
 
-  _addBears() {
-    const far = [
-      { scale: 3.2, duration: 52, waypoints: [[-70, 0, -168], [-40, 0, -182], [-12, 0, -170], [-48, 0, -156]] },
-      { scale: 2.9, duration: 64, waypoints: [[86, 0, -162], [108, 0, -148], [84, 0, -136], [64, 0, -154]] },
-      { scale: 2.7, duration: 78, waypoints: [[-170, 0, -40], [-184, 0, -8], [-168, 0, 22], [-152, 0, -18]] },
-      { scale: 3.0, duration: 58, waypoints: [[48, 0, 72], [68, 0, 88], [42, 0, 104], [22, 0, 82]] },
-    ];
-    const near = [
-      { scale: 3.4, duration: 46, waypoints: [[-38, 0, -72], [-22, 0, -88], [-8, 0, -76], [-28, 0, -62]] },
-      { scale: 3.1, duration: 54, waypoints: [[36, 0, -58], [52, 0, -74], [38, 0, -90], [18, 0, -68]] },
-    ];
-    const routes = WEAK ? [...near, far[0], far[1]] : [...near, ...far];
-    for (const pose of routes) {
-      const bear = createPolarBear();
-      bear.scale.setScalar(pose.scale);
-      this.scene.add(bear);
-      const flyer = {
-        group: bear,
-        legs: bear.userData.legs || [],
-        points: pose.waypoints.map((p) => new THREE.Vector3(p[0], p[1], p[2])),
-        duration: pose.duration,
-        _pos: new THREE.Vector3(),
-        _next: new THREE.Vector3(),
-        _q: new THREE.Quaternion(),
-        _aimed: false,
-      };
-      this.bears.push(flyer);
-    }
-  }
-
   _addBus() {
     const pose = CONFIG.exhibition.bus;
     const bus = createCrewBus();
@@ -474,22 +441,6 @@ export class ArcticWorld {
 
       if (heli.rotor) heli.rotor.rotation.y += 0.62;
       if (heli.tail) heli.tail.rotation.z += 1.15;
-    }
-    for (const bear of this.bears) {
-      sampleClosedSpline(bear.points, this._time / bear.duration, bear._pos);
-      bear.group.position.copy(bear._pos);
-      bear.group.position.y = 0;
-      sampleClosedSpline(bear.points, this._time / bear.duration + 0.02, bear._next);
-      _heliFwd.subVectors(bear._next, bear._pos);
-      _heliFwd.y = 0;
-      if (_heliFwd.lengthSq() > 1e-6) {
-        _heliLook.set(bear.group.position.x + _heliFwd.x, 0, bear.group.position.z + _heliFwd.z);
-        bear.group.lookAt(_heliLook);
-      }
-      const gait = this._time * 6.2;
-      bear.legs.forEach((leg, i) => {
-        leg.rotation.z = Math.sin(gait + (i < 2 ? 0 : Math.PI) + (i % 2) * 0.2) * 0.35;
-      });
     }
   }
 }
