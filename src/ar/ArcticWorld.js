@@ -298,16 +298,17 @@ export class ArcticWorld {
   }
 
   _addBears() {
-    const routes = WEAK
-      ? [
-        { scale: 2.3, duration: 52, waypoints: [[-70, 0, -168], [-40, 0, -182], [-12, 0, -170], [-48, 0, -156]] },
-        { scale: 2.0, duration: 64, waypoints: [[86, 0, -162], [108, 0, -148], [84, 0, -136], [64, 0, -154]] },
-      ]
-      : [
-        { scale: 2.45, duration: 52, waypoints: [[-70, 0, -168], [-40, 0, -182], [-12, 0, -170], [-48, 0, -156]] },
-        { scale: 2.1, duration: 64, waypoints: [[86, 0, -162], [108, 0, -148], [84, 0, -136], [64, 0, -154]] },
-        { scale: 1.9, duration: 78, waypoints: [[-170, 0, -40], [-184, 0, -8], [-168, 0, 22], [-152, 0, -18]] },
-      ];
+    const far = [
+      { scale: 3.2, duration: 52, waypoints: [[-70, 0, -168], [-40, 0, -182], [-12, 0, -170], [-48, 0, -156]] },
+      { scale: 2.9, duration: 64, waypoints: [[86, 0, -162], [108, 0, -148], [84, 0, -136], [64, 0, -154]] },
+      { scale: 2.7, duration: 78, waypoints: [[-170, 0, -40], [-184, 0, -8], [-168, 0, 22], [-152, 0, -18]] },
+      { scale: 3.0, duration: 58, waypoints: [[48, 0, 72], [68, 0, 88], [42, 0, 104], [22, 0, 82]] },
+    ];
+    const near = [
+      { scale: 3.4, duration: 46, waypoints: [[-38, 0, -72], [-22, 0, -88], [-8, 0, -76], [-28, 0, -62]] },
+      { scale: 3.1, duration: 54, waypoints: [[36, 0, -58], [52, 0, -74], [38, 0, -90], [18, 0, -68]] },
+    ];
+    const routes = WEAK ? [...near, far[0], far[1]] : [...near, ...far];
     for (const pose of routes) {
       const bear = createPolarBear();
       bear.scale.setScalar(pose.scale);
@@ -487,7 +488,7 @@ export class ArcticWorld {
       }
 
       if (heli.rotor) heli.rotor.rotation.y += 0.62;
-      if (heli.tail) heli.tail.rotation.x += 0.95;
+      if (heli.tail) heli.tail.rotation.z += 1.15;
     }
     for (const bear of this.bears) {
       sampleClosedSpline(bear.points, this._time / bear.duration, bear._pos);
