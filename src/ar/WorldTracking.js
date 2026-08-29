@@ -73,6 +73,11 @@ export class WorldTracking {
     this._alvaTranslation = true;
     this._skipCollide = false;
     this._spawnRigQuat = new THREE.Quaternion();
+    this._origin = new THREE.Vector3(0, 0, 0);
+    this._worldUp = new THREE.Vector3(0, 1, 0);
+    this._lookTarget = new THREE.Vector3();
+    this._parallelUp = new THREE.Vector3(1, 0, 0);
+    this._correctedWorldQuat = new THREE.Quaternion();
   }
 
   get status() {
@@ -371,6 +376,24 @@ export class WorldTracking {
     return Math.min(0.05, Math.max(0.001, (now - prev) / 1000));
   }
 
+  /**
+   * Keep world look direction; remove roll relative to world +Y.
+   * worldQuat = rig.quaternion * localQuat → lookAt(forward, up) → back to rig local.
+   */
+  _removeWorldRoll(localQuat, out) {
+    this._scratchQuat.copy(this.rig.quaternion).multiply(localQuat);
+    this._scratchVec.set(0, 0, -1).applyQuaternion(this._scratchQuat).normalize();
+    this._lookTarget.copy(this._scratchVec);
+    if (Math.abs(this._scratchVec.y) > 0.999) {
+      this._scratchMat.lookAt(this._origin, this._lookTarget, this._parallelUp);
+    } else {
+      this._scratchMat.lookAt(this._origin, this._lookTarget, this._worldUp);
+    }
+    this._correctedWorldQuat.setFromRotationMatrix(this._scratchMat);
+    out.copy(this.rig.quaternion).invert().multiply(this._correctedWorldQuat);
+    return out;
+  }
+
   _commitCamera(dt) {
     const camera = this.camera;
     if (!this._smoothed) {
@@ -384,6 +407,8 @@ export class WorldTracking {
       this._smoothQuat.slerp(this._targetQuat, THREE.MathUtils.clamp(rotK, 0, 1));
     }
     this._smoothPos.y = 0;
+
+    this._removeWorldRoll(this._smoothQuat, this._smoothQuat);
 
     // _smoothPos is exhibition-space XZ. CameraRig keeps lookAt pitch;
     // undo that rotation on translation so worldPos = T_rig + _smoothPos.
