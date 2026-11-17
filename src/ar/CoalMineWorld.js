@@ -6,6 +6,7 @@ import { createExcavator, tickExcavator } from '../assets/Excavator.js';
 import { createQuarryTerrain } from './QuarryTerrain.js';
 import { buildHaulLoop } from './HaulRoad.js';
 import { coalDigSites } from './CoalSeams.js';
+import { surfaceTexture } from '../assets/finishMaps.js';
 
 const WEAK = CONFIG.performance.weak;
 const FOG = 0xa8c8e8;
@@ -94,7 +95,14 @@ export class CoalMineWorld {
   _rimPlateau() {
     const group = new THREE.Group();
     group.name = 'QuarryRim';
-    const soil = new THREE.MeshStandardMaterial({ color: 0xb88955, roughness: 0.92, metalness: 0.03 });
+    const dirt = surfaceTexture('dirt');
+    if (dirt) dirt.repeat.set(32, 32);
+    const soil = new THREE.MeshStandardMaterial({
+      color: dirt ? 0xffffff : 0xb88955,
+      map: dirt,
+      roughness: 0.96,
+      metalness: 0.02,
+    });
     const ground = new THREE.Mesh(new THREE.RingGeometry(78, 260, WEAK ? 40 : 64), soil);
     ground.rotation.x = -Math.PI / 2;
     ground.position.copy(this._quarryOrigin);

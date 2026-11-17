@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { surfaceTexture } from '../assets/finishMaps.js';
 
 /**
  * One haul spiral inside the pit: climb on the inner lane, rim turnaround,
@@ -122,16 +123,19 @@ export function queryHaul(x, z) {
   return { dist: bestD, y: bestY, tx, tz };
 }
 
-function ribbonGeometry(points, halfW, lift) {
+function ribbonGeometry(points, halfW, lift, closed = true) {
   const n = points.length;
   const positions = new Float32Array(n * 2 * 3);
+  const uvs = new Float32Array(n * 2 * 2);
   let prevNx = 0;
   let prevNz = 1;
   let hasPrev = false;
   for (let i = 0; i < n; i += 1) {
     const p = points[i];
-    const a = points[(i - 1 + n) % n];
-    const b = points[(i + 1) % n];
+    const i0 = closed ? (i - 1 + n) % n : Math.max(0, i - 1);
+    const i1 = closed ? (i + 1) % n : Math.min(n - 1, i + 1);
+    const a = points[i0];
+    const b = points[i1];
     let tx = b.x - a.x;
     let tz = b.z - a.z;
     const len = Math.hypot(tx, tz) || 1;
@@ -154,12 +158,81 @@ function ribbonGeometry(points, halfW, lift) {
     positions[o + 3] = p.x - nx * halfW;
     positions[o + 4] = y;
     positions[o + 5] = p.z - nz * halfW;
+    const u = i * 0.42;
+    const uv = i * 4;
+    uvs[uv] = u;
+    uvs[uv + 1] = 0;
+    uvs[uv + 2] = u;
+    uvs[uv + 3] = 6;
   }
   const indices = [];
-  for (let i = 0; i < n; i += 1) {
+  const seg = closed ? n : n - 1;
+  for (let i = 0; i < seg; i += 1) {
     const i2 = i * 2;
-    const j = ((i + 1) % n) * 2;
+    const j = (closed ? (i + 1) % n : i + 1) * 2;
     indices.push(i2, j, i2 + 1, i2 + 1, j, j + 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Inward (toward the pit) horizontal normal of the spiral centerline. */
+function inwardNormal(t, out) {
+  const ang = HAUL.a0 + t * HAUL.turns * TAU;
+  const r = THREE.MathUtils.lerp(HAUL.r0, HAUL.r1, t);
+  const dAng = HAUL.turns * TAU;
+  const dr = HAUL.r1 - HAUL.r0;
+  const c = Math.cos(ang);
+  const s = Math.sin(ang);
+  const tx = -s * r * dAng + c * dr;
+  const tz = c * r * dAng + s * dr;
+  const len = Math.hypot(tx, tz) || 1;
+  let nx = -tz / len;
+  let nz = tx / len;
+  if (c * r * nx + s * r * nz > 0) {
+    nx = -nx;
+    nz = -nz;
+  }
+  out.set(nx, 0, nz);
+  return out;
+}
+
+/** Spoil windrow on the pit side of the merged climb/descent. */
+function bermGeometry() {
+  const steps = HAUL.turns * 80;
+  const inner = HAUL.lane + HAUL.ribbon + 0.2;
+  const mid = inner + 1.15;
+  const outer = inner + 2.35;
+  const positions = new Float32Array((steps + 1) * 9);
+  const normal = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    spiralCenter(t, 0, center);
+    inwardNormal(t, normal);
+    const y0 = center.y + 0.1;
+    const y1 = center.y + 0.85;
+    const o = i * 9;
+    positions[o] = center.x + normal.x * inner;
+    positions[o + 1] = y0;
+    positions[o + 2] = center.z + normal.z * inner;
+    positions[o + 3] = center.x + normal.x * mid;
+    positions[o + 4] = y1;
+    positions[o + 5] = center.z + normal.z * mid;
+    positions[o + 6] = center.x + normal.x * outer;
+    positions[o + 7] = y0;
+    positions[o + 8] = center.z + normal.z * outer;
+  }
+  const indices = [];
+  for (let i = 0; i < steps; i += 1) {
+    const a = i * 3;
+    const b = (i + 1) * 3;
+    indices.push(a, b, a + 1, a + 1, b, b + 1);
+    indices.push(a + 1, b + 1, a + 2, a + 2, b + 1, b + 2);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -168,34 +241,73 @@ function ribbonGeometry(points, halfW, lift) {
   return geo;
 }
 
-/** Asphalt ribbon + yellow center line. Parent it at the quarry origin. */
+function turnaroundRibbons() {
+  const upEnd = spiralCenter(1, HAUL.lane, new THREE.Vector3());
+  const downEnd = spiralCenter(1, -HAUL.lane, new THREE.Vector3());
+  const upStart = spiralCenter(0, HAUL.lane, new THREE.Vector3());
+  const downStart = spiralCenter(0, -HAUL.lane, new THREE.Vector3());
+  const rim = [upEnd];
+  addBulb(upEnd, downEnd, true, 18, rim);
+  rim.push(downEnd);
+  const floor = [downStart];
+  addBulb(downStart, upStart, false, 18, floor);
+  floor.push(upStart);
+  return [rim, floor];
+}
+
+/**
+ * One gravel haul ramp (both lanes on a single shelf) plus a spoil berm
+ * on the pit side. Driving line is unchanged.
+ */
 export function createHaulRoadMesh() {
   const group = new THREE.Group();
   group.name = 'HaulRoad';
-  const pts = buildHaulLoop();
-  const asphalt = new THREE.Mesh(
-    ribbonGeometry(pts, HAUL.ribbon, 0.05),
-    new THREE.MeshStandardMaterial({
-      color: 0x3a4450,
-      roughness: 0.86,
-      metalness: 0.08,
-      side: THREE.DoubleSide,
-    }),
+  const steps = HAUL.turns * 96;
+  const center = [];
+  for (let i = 0; i <= steps; i += 1) {
+    center.push(spiralCenter(i / steps, 0, new THREE.Vector3()));
+  }
+  const gravelMap = surfaceTexture('gravel');
+  const gravelMat = new THREE.MeshStandardMaterial({
+    color: gravelMap ? 0xffffff : 0xc4beb4,
+    map: gravelMap,
+    roughness: 0.96,
+    metalness: 0.02,
+    side: THREE.DoubleSide,
+  });
+  const road = new THREE.Mesh(
+    ribbonGeometry(center, HAUL.lane + HAUL.ribbon, 0.05, false),
+    gravelMat,
   );
-  asphalt.receiveShadow = true;
-  asphalt.name = 'HaulAsphalt';
-  group.add(asphalt);
+  road.receiveShadow = true;
+  road.name = 'HaulGravel';
+  group.add(road);
 
-  const line = new THREE.Mesh(
-    ribbonGeometry(pts, 0.14, 0.1),
+  const padMat = new THREE.MeshStandardMaterial({
+    color: 0xc4beb4,
+    roughness: 0.96,
+    metalness: 0.02,
+    side: THREE.DoubleSide,
+  });
+  for (const bulb of turnaroundRibbons()) {
+    const pad = new THREE.Mesh(ribbonGeometry(bulb, HAUL.ribbon, 0.03, false), padMat);
+    pad.receiveShadow = true;
+    pad.name = 'HaulPad';
+    group.add(pad);
+  }
+
+  const berm = new THREE.Mesh(
+    bermGeometry(),
     new THREE.MeshStandardMaterial({
-      color: 0xf0c400,
-      roughness: 0.45,
-      metalness: 0.08,
+      color: 0x3d3028,
+      roughness: 0.97,
+      metalness: 0.02,
       side: THREE.DoubleSide,
     }),
   );
-  line.name = 'HaulCenterLine';
-  group.add(line);
+  berm.castShadow = true;
+  berm.receiveShadow = true;
+  berm.name = 'HaulBerm';
+  group.add(berm);
   return group;
 }

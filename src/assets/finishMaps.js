@@ -93,3 +93,54 @@ export function applyFinish(material, kind) {
   material.needsUpdate = true;
   return material;
 }
+
+const surfaceCache = new Map();
+
+function clampByte(v) {
+  return Math.max(0, Math.min(255, v | 0));
+}
+
+/** Colored ground photo. Null outside the browser so node checks still load. */
+export function surfaceTexture(kind) {
+  if (typeof document === 'undefined') return null;
+  if (surfaceCache.has(kind)) return surfaceCache.get(kind);
+  const size = 256;
+  const data = new Uint8ClampedArray(size * size * 4);
+  const gravel = kind === 'gravel';
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const i = (y * size + x) * 4;
+      const coarse = fbm(x >> 3, y >> 3, gravel ? 21 : 4);
+      const fine = hash(x, y, gravel ? 8 : 2);
+      const chip = hash(x >> 2, y >> 2, 19);
+      let r;
+      let g;
+      let b;
+      if (gravel) {
+        const stone = chip > 0.72 ? 186 : chip < 0.14 ? 128 : 156 + coarse * 22;
+        r = stone + fine * 10;
+        g = stone + fine * 6 - 4;
+        b = stone - 10;
+      } else {
+        const blot = hash(x >> 5, y >> 5, 6);
+        const soil = 78 + coarse * 120 + fine * 18;
+        const ash = blot < 0.22 ? 48 : blot > 0.78 ? -28 : 0;
+        r = soil + 28 - ash;
+        g = soil - 4 - ash * 0.45;
+        b = soil - 42 - ash * 0.15;
+      }
+      data[i] = clampByte(r);
+      data[i + 1] = clampByte(g);
+      data[i + 2] = clampByte(b);
+      data[i + 3] = 255;
+    }
+  }
+  const tex = new THREE.CanvasTexture(imageFrom(data, size));
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  surfaceCache.set(kind, tex);
+  return tex;
+}
