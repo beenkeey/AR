@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { HAUL, buildHaulLoop, createHaulRoadMesh, queryHaul } from './HaulRoad.js';
+import { coalAt, coalDigSites } from './CoalSeams.js';
 
 /**
  * Continuous open-pit mesh: radial terraces with short faces — no sky leaks.
@@ -59,6 +60,7 @@ export function createQuarryTerrain({
   const indices = [];
   const tmpC = new THREE.Color();
   const asphaltC = new THREE.Color(0x3a4450);
+  const coalC = new THREE.Color(0x0c1016);
 
   for (let ir = 0; ir <= radial; ir += 1) {
     const r = (ir / radial) * rimR;
@@ -72,9 +74,10 @@ export function createQuarryTerrain({
       let y = bench;
       const haul = queryHaul(x, z);
       const edge = HAUL.cover + HAUL.shoulder;
+      const onRoad = haul.dist <= HAUL.cover;
       if (haul.dist < edge) {
         const cut = haul.y - 0.2;
-        if (haul.dist <= HAUL.cover) {
+        if (onRoad) {
           y = cut;
           tmpC.setHex(0x3a4450);
         } else {
@@ -85,6 +88,11 @@ export function createQuarryTerrain({
         }
       } else {
         tmpC.copy(colorAt(y));
+      }
+      if (!onRoad) {
+        const coal = coalAt(r, a);
+        if (coal.amount > 0.04) tmpC.lerp(coalC, coal.amount);
+        if (coal.recess > 0.05 && haul.dist > edge) y -= coal.recess * 0.9;
       }
       positions.push(x, y, z);
       colors.push(tmpC.r, tmpC.g, tmpC.b);
@@ -138,5 +146,6 @@ export function createQuarryTerrain({
   group.add(createHaulRoadMesh());
   group.userData.heightAt = heightAt;
   group.userData.haul = { yMin, yMax, rMin, rMax, points: haul.length };
+  group.userData.coalSites = coalDigSites();
   return group;
 }

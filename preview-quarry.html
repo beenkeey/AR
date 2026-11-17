@@ -28,7 +28,7 @@
     scene.setOpacity(1);
     scene.restoreMaterials();
 
-    const views = ['front', 'bottom', 'overlook', 'belaz'];
+    const views = ['front', 'bottom', 'overlook', 'belaz', 'dig'];
     const wrap = document.getElementById('wrap');
     const checks = [];
 
@@ -60,7 +60,7 @@
       && Math.hypot(vp.bottom.position.x - o.x, vp.bottom.position.z - o.z) < 0.5
       && vp.bottom.position.y < -20;
     const onlyFour = scene.viewpoints.length === 4
-      && views.every((id) => scene.viewpoints.some((v) => v.id === id));
+      && ['front', 'bottom', 'overlook', 'belaz'].every((id) => scene.viewpoints.some((v) => v.id === id));
 
     checks.push(`ContactShadow in complex: ${contactInComplex ? 'FAIL' : 'ok'}`);
     checks.push(`ContactShadow on anchor: ${contactInAnchor ? 'FAIL' : 'ok'}`);
@@ -103,16 +103,47 @@
     });
     checks.push(`BelAZ nose along travel (1 = forward): ${faceDots.map((d) => d.toFixed(2)).join(', ')}`);
     checks.push(`Trucks: ${scene.world.trucks.length}`);
+    const sites = scene.world.terrain.userData.coalSites || [];
+    checks.push(`Coal dig faces: ${sites.length} (want 2)`);
+    const mesh = scene.world.terrain.children.find((n) => n.geometry?.attributes?.color);
+    const pos = mesh.geometry.attributes.position;
+    const col = mesh.geometry.attributes.color;
+    let dark = 0;
+    let seen = 0;
+    for (const site of sites) {
+      const radial = new THREE.Vector3(Math.cos(site.ang), 0, Math.sin(site.ang));
+      const ex = scene.world.excavators.find((item) => {
+        const dx = item.position.x - o.x - Math.cos(site.ang) * site.standR;
+        const dz = item.position.z - o.z - Math.sin(site.ang) * site.standR;
+        return dx * dx + dz * dz < 1;
+      });
+      const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(ex.quaternion);
+      fwd.y = 0;
+      fwd.normalize();
+      checks.push(`Shovel yaw ${ex.rotation.y.toFixed(2)} vs face ${site.ang.toFixed(2)}, dot ${fwd.dot(radial).toFixed(2)}, road ${site.score.toFixed(1)}`);
+      for (let i = 0; i < pos.count; i += 1) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+        const r = Math.hypot(x, z);
+        const a = Math.atan2(z, x);
+        const da = Math.atan2(Math.sin(a - site.ang), Math.cos(a - site.ang));
+        if (Math.abs(da) < 0.22 && Math.abs(r - (site.faceR + 1)) < 1.4) {
+          seen += 1;
+          const lum = col.getX(i) + col.getY(i) + col.getZ(i);
+          if (lum < 0.45) dark += 1;
+        }
+      }
+    }
+    checks.push(`Coal-colored face verts: ${dark}/${seen} (want most of them dark)`);
     document.getElementById('checks').textContent = checks.join('\n');
 
     const W = 640;
     const H = 400;
     for (const id of views) {
-      const view = scene.getViewpoint(id);
+      const view = id === 'dig' ? { id: 'dig', label: 'Ковш', position: new THREE.Vector3() } : scene.getViewpoint(id);
       const cell = document.createElement('div');
       const label = document.createElement('div');
       label.className = 'label';
-      label.textContent = `${view.label} (${id})  pos ${view.position.x.toFixed(1)}, ${view.position.y.toFixed(1)}, ${view.position.z.toFixed(1)}`;
       const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
       renderer.setSize(W, H);
       renderer.setPixelRatio(1);
@@ -136,10 +167,18 @@
       } else if (id === 'overlook') {
         cam.position.copy(view.position);
         cam.lookAt(o.x, -8, o.z);
+      } else if (id === 'dig') {
+        const ex = scene.world.excavators[0];
+        const eye = new THREE.Vector3(3.4, 3.4, 8.5).applyQuaternion(ex.quaternion).add(ex.position);
+        cam.position.copy(eye);
+        const look = new THREE.Vector3(6.6, 1.2, 0).applyQuaternion(ex.quaternion).add(ex.position);
+        cam.lookAt(look);
+        view.position.copy(eye);
       } else {
         cam.position.copy(view.position);
         cam.lookAt(o.x, -10, o.z);
       }
+      label.textContent = `${view.label} (${id})  pos ${cam.position.x.toFixed(1)}, ${cam.position.y.toFixed(1)}, ${cam.position.z.toFixed(1)}`;
       renderer.render(scene.scene, cam);
       cell.append(label, renderer.domElement);
       wrap.appendChild(cell);

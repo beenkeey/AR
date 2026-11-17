@@ -4,7 +4,8 @@ import { createBelAZ } from '../assets/BelAZ.js';
 import { createMiningDrone } from '../assets/MiningDrone.js';
 import { createExcavator, tickExcavator } from '../assets/Excavator.js';
 import { createQuarryTerrain } from './QuarryTerrain.js';
-import { buildHaulLoop, queryHaul } from './HaulRoad.js';
+import { buildHaulLoop } from './HaulRoad.js';
+import { coalDigSites } from './CoalSeams.js';
 
 const WEAK = CONFIG.performance.weak;
 const FOG = 0xa8c8e8;
@@ -42,8 +43,8 @@ export class CoalMineWorld {
 
     this.terrain = createQuarryTerrain({
       rimR: 78,
-      segs: WEAK ? 48 : 72,
-      rings: WEAK ? 40 : 56,
+      segs: WEAK ? 56 : 84,
+      rings: WEAK ? 48 : 68,
     });
     this.terrain.position.copy(this._quarryOrigin);
     this.scene.add(this.terrain);
@@ -257,22 +258,15 @@ export class CoalMineWorld {
 
   _addBenchExcavators() {
     const o = this._quarryOrigin;
-    const heightAt = this.terrain?.userData?.heightAt;
-    // Sit in the bench gap between spiral windings. Boom (+X) runs along the road.
-    for (const [radius, scale] of [[36, 1.15], [52, 1.28]]) {
-      let best = null;
-      for (let i = 0; i < 48; i += 1) {
-        const ang = (i / 48) * Math.PI * 2;
-        const x = Math.cos(ang) * radius;
-        const z = Math.sin(ang) * radius;
-        const q = queryHaul(x, z);
-        if (!best || q.dist > best.dist) best = { x, z, dist: q.dist, tx: q.tx, tz: q.tz };
-      }
+    for (const site of coalDigSites()) {
       const ex = createExcavator();
-      const y = heightAt ? heightAt(radius) : -12;
-      ex.position.set(o.x + best.x, y, o.z + best.z);
-      ex.rotation.y = Math.atan2(best.tz, best.tx);
-      ex.scale.setScalar(scale);
+      ex.userData.phase = site.phase;
+      const x = Math.cos(site.ang) * site.standR;
+      const z = Math.sin(site.ang) * site.standR;
+      ex.position.set(o.x + x, site.deckY, o.z + z);
+      // rotation.y sends local +X to (cos θ, 0, -sin θ); outward is (cos ang, 0, sin ang)
+      ex.rotation.y = -site.ang;
+      ex.scale.setScalar(site.scale);
       this.scene.add(ex);
       this.excavators.push(ex);
     }

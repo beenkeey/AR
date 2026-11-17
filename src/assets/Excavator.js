@@ -42,35 +42,40 @@ export function createExcavator() {
   box(house, orange, -2.55, 2.5, 0, 1.2, 0.35, 2.4);
   box(house, black, 1.2, 2.85, 0, 0.9, 0.2, 0.35);
 
-  // —— Boom ——
+  // —— Boom (short enough to bite the bench it stands on) ——
   const boomRoot = new THREE.Group();
-  boomRoot.position.set(1.7, 1.7, 0);
+  boomRoot.position.set(1.55, 1.85, 0);
   house.add(boomRoot);
   const boom = new THREE.Group();
   boom.name = 'Boom';
   boomRoot.add(boom);
-  box(boom, yellow, 2.5, 0.2, 0, 5.2, 0.65, 0.65);
-  box(boom, steel, 2.5, 0.6, 0, 4.6, 0.18, 0.18);
+  box(boom, yellow, 1.08, 0.12, 0, 2.16, 0.58, 0.58);
+  box(boom, steel, 1.08, 0.44, 0, 1.9, 0.14, 0.14);
 
   const stickRoot = new THREE.Group();
-  stickRoot.position.set(5.0, 0.2, 0);
+  stickRoot.position.set(2.15, 0.1, 0);
   boom.add(stickRoot);
   const stick = new THREE.Group();
   stick.name = 'Stick';
   stickRoot.add(stick);
-  box(stick, yellowDark, 2.0, -0.15, 0, 4.2, 0.5, 0.5);
+  box(stick, yellowDark, 0.85, -0.08, 0, 1.7, 0.44, 0.44);
 
   const bucketRoot = new THREE.Group();
-  bucketRoot.position.set(4.1, -0.15, 0);
+  bucketRoot.position.set(1.55, -0.08, 0);
   stick.add(bucketRoot);
   const bucket = new THREE.Group();
   bucket.name = 'Bucket';
   bucketRoot.add(bucket);
-  box(bucket, steel, 0.55, -0.4, 0, 1.4, 1.2, 1.55);
-  box(bucket, black, 1.2, -0.55, 0, 0.3, 0.75, 1.5);
-  for (const z of [-0.5, 0, 0.5]) {
-    box(bucket, steel, 1.4, -0.95, z, 0.4, 0.25, 0.25);
+  box(bucket, steel, 0.5, -0.35, 0, 1.25, 1.05, 1.45);
+  box(bucket, black, 1.1, -0.5, 0, 0.28, 0.7, 1.4);
+  for (const z of [-0.48, 0, 0.48]) {
+    box(bucket, steel, 1.28, -0.82, z, 0.36, 0.22, 0.22);
   }
+  // Broken coal in the bucket — blocks, not spheres
+  const lump = mat(0x1c1916, 0.04, 0.94);
+  box(bucket, lump, 0.35, -0.05, 0.15, 0.55, 0.32, 0.42);
+  box(bucket, lump, 0.55, 0.02, -0.28, 0.38, 0.28, 0.36);
+  box(bucket, lump, 0.15, -0.02, -0.05, 0.32, 0.22, 0.3);
 
   root.userData.house = house;
   root.userData.boom = boom;
@@ -86,12 +91,35 @@ export function createExcavator() {
   return root;
 }
 
+function smooth(edge0, edge1, x) {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * One dig cycle: lower into the seam, curl, lift, return.
+ * t ≈ 0.40 is teeth in the face.
+ */
 export function tickExcavator(ex, time) {
-  const phase = (ex.userData.phase || 0) + time;
-  if (ex.userData.house) ex.userData.house.rotation.y = Math.sin(phase * 0.15) * 0.4;
-  if (ex.userData.boom) ex.userData.boom.rotation.z = -0.28 + Math.sin(phase * 0.5) * 0.22;
-  if (ex.userData.stick) ex.userData.stick.rotation.z = 0.45 + Math.sin(phase * 0.5 + 0.7) * 0.28;
-  if (ex.userData.bucket) ex.userData.bucket.rotation.z = 0.12 + Math.sin(phase * 0.5 + 1.3) * 0.35;
+  const t = ((time * 0.16 + (ex.userData.phase || 0)) % 1 + 1) % 1;
+  const keys = [
+    { t: 0.0, b: -0.22, s: 0.12, k: 0.65 },
+    { t: 0.42, b: -0.62, s: 0.38, k: 0.88 },
+    { t: 0.58, b: -0.48, s: 0.42, k: -0.15 },
+    { t: 0.78, b: 0.06, s: 0.08, k: -0.35 },
+    { t: 1.0, b: -0.22, s: 0.12, k: 0.65 },
+  ];
+  let i = 0;
+  while (i < keys.length - 2 && t >= keys[i + 1].t) i += 1;
+  const a = keys[i];
+  const b = keys[i + 1];
+  const span = b.t - a.t || 1;
+  const u = smooth(0, 1, (t - a.t) / span);
+  const mix = (p, q) => p + (q - p) * u;
+  if (ex.userData.house) ex.userData.house.rotation.y = Math.sin(t * Math.PI * 2) * 0.03;
+  if (ex.userData.boom) ex.userData.boom.rotation.z = mix(a.b, b.b);
+  if (ex.userData.stick) ex.userData.stick.rotation.z = mix(a.s, b.s);
+  if (ex.userData.bucket) ex.userData.bucket.rotation.z = mix(a.k, b.k);
 }
 
 function box(parent, material, x, y, z, sx, sy, sz) {
