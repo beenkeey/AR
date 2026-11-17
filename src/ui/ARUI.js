@@ -13,7 +13,8 @@ const VIEW_META = {
   right: { icon: '▶' },
   back: { icon: '▼' },
   left: { icon: '◀' },
-  balcony: { icon: '▣' },
+  overlook: { icon: '▣' },
+  belaz: { icon: '◆' },
 };
 
 export class ARUI {
@@ -43,7 +44,7 @@ export class ARUI {
       const meta = VIEW_META[item.id] || { icon: '●' };
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = `viewpoint-button${item.id === 'balcony' ? ' is-balcony' : ''}`;
+      btn.className = `viewpoint-button${item.id === 'overlook' || item.id === 'belaz' ? ' is-balcony' : ''}`;
       btn.dataset.id = item.id;
       const icon = document.createElement('span');
       icon.className = 'viewpoint-icon';

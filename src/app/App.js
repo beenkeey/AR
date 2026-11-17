@@ -92,6 +92,8 @@ export class App {
     this._rawVec = new THREE.Vector3();
     this._raycaster = new THREE.Raycaster();
     this._pointer = new THREE.Vector2();
+    this._followViewpoint = null;
+    this._followEye = new THREE.Vector3();
     this.session.renderer.domElement.addEventListener('pointerup', (event) => {
       this.onExhibitionPointer(event);
     });
@@ -114,7 +116,7 @@ export class App {
       try {
         await this.rig.load();
       } catch (err) {
-        arWarn('Model load failed, using Arctic procedural rig', err);
+        arWarn('Model load failed, using coal quarry procedural complex', err);
         this.rig.root.add(createFallbackRig());
         this.rig.applyConfig();
         this.rig.assetKind = 'ARCTIC PROCEDURAL';
@@ -228,6 +230,7 @@ export class App {
         debugState.cameraUpdateTimestamp = formatTimestamp();
       }
       this.exhibition.tick(now);
+      this._updateFollowViewpoint();
     }
     if (this.exhibition.locked) this.exhibition.enforceLock();
     this._updateFreezeHud(now);
@@ -336,15 +339,36 @@ export class App {
   goToViewpoint(id) {
     const view = this.exhibition.getViewpoint(id);
     if (!view) return;
+    this._followViewpoint = view.follow ? id : null;
+    if (view.follow) {
+      const eye = this.exhibition.getFollowEye(this._followEye);
+      if (eye) view.position.copy(eye);
+    }
     if (!this.worldTracking.enabled) {
       this.resetCameraForExhibition();
       this.session.camera.position.copy(view.position);
       this.session.camera.updateMatrixWorld(true);
+    } else if (view.follow) {
+      this.worldTracking.setWorldEye(view.position);
     } else {
       this.worldTracking.teleportTo(view.position);
     }
     this.arUI.setActiveViewpoint(id);
     arLog(`Viewpoint ${id}`);
+  }
+
+  _updateFollowViewpoint() {
+    if (this._followViewpoint !== 'belaz') return;
+    const eye = this.exhibition.getFollowEye(this._followEye);
+    if (!eye) return;
+    const view = this.exhibition.getViewpoint('belaz');
+    if (view) view.position.copy(eye);
+    if (this.worldTracking.enabled) {
+      this.worldTracking.setWorldEye(eye);
+    } else {
+      this.session.camera.position.copy(eye);
+      this.session.camera.updateMatrixWorld(true);
+    }
   }
 
   onExhibitionPointer(event) {
@@ -418,6 +442,7 @@ export class App {
     arLog('Back to scan');
     this.placementStarted = false;
     this.transitioning = false;
+    this._followViewpoint = null;
     this.hyperspace.stop();
     this.worldTracking.disable();
     this.tracking.stop();

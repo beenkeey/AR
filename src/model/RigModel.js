@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CONFIG } from '../config.js';
 import { arLog } from '../logger.js';
 import { debugState } from '../debugState.js';
-import { createArcticDrillingRig, measureRig } from '../assets/ArcticDrillingRig.js';
+import { createCoalMineComplex, measureRig } from '../assets/CoalMineComplex.js';
 
 export class RigModel {
   constructor() {
@@ -15,7 +15,7 @@ export class RigModel {
   }
 
   async load() {
-    this.installArctic();
+    this.installCoalMine();
     this.syncAssetDebug();
     this.loaded = true;
     return this.root;
@@ -46,16 +46,16 @@ export class RigModel {
     wrapper.add(model);
     this.applyConfig(wrapper);
     this.root.add(wrapper);
-    arLog('Rig GLB loaded');
+    arLog('Coal complex GLB loaded');
   }
 
-  installArctic() {
-    const rig = createArcticDrillingRig();
-    this.applyConfig(rig);
-    this.root.add(rig);
-    this.assetKind = 'ARCTIC PROCEDURAL';
+  installCoalMine() {
+    const complex = createCoalMineComplex();
+    this.applyConfig(complex);
+    this.root.add(complex);
+    this.assetKind = 'COAL QUARRY PROCEDURAL';
     arLog(
-      `Arctic procedural rig triangles=${rig.userData.triangles} height=${rig.userData.height.toFixed(2)}m`,
+      `Coal quarry complex triangles=${complex.userData.triangles} height=${complex.userData.height.toFixed(2)}m`,
     );
   }
 
@@ -71,11 +71,11 @@ export class RigModel {
   }
 
   syncAssetDebug() {
-    const arctic = this.root.getObjectByName('ArcticDrillingRig');
-    if (arctic) {
-      debugState.rigSource = 'ARCTIC PROCEDURAL';
-      debugState.rigTriangles = String(arctic.userData.triangles ?? 0);
-      debugState.rigHeight = `${Number(arctic.userData.height || 0).toFixed(2)} m`;
+    const complex = this.root.getObjectByName('CoalMineComplex');
+    if (complex) {
+      debugState.rigSource = 'COAL QUARRY PROCEDURAL';
+      debugState.rigTriangles = String(complex.userData.triangles ?? 0);
+      debugState.rigHeight = `${Number(complex.userData.height || 0).toFixed(2)} m`;
       return;
     }
     const stats = measureRig(this.root);
@@ -94,5 +94,5 @@ export class RigModel {
 }
 
 export function createFallbackRig() {
-  return createArcticDrillingRig();
+  return createCoalMineComplex();
 }

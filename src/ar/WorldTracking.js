@@ -316,6 +316,28 @@ export class WorldTracking {
     return true;
   }
 
+  /** Soft follow: move CameraRig each frame without resetting gyro / Alva state. */
+  setWorldEye(worldPos) {
+    if (!this.enabled) return false;
+    this._alvaTranslation = false;
+    this._skipCollide = true;
+    this._appliedPos.set(0, 0, 0);
+    this._targetPos.set(0, 0, 0);
+    this._smoothPos.set(0, 0, 0);
+    this.rig.matrixAutoUpdate = true;
+    this.rig.position.copy(worldPos);
+    this.rig.quaternion.copy(this._spawnRigQuat);
+    this.rig.up.set(0, 1, 0);
+    this.rig.updateMatrix();
+    this.rig.matrixAutoUpdate = false;
+    this.rig.matrix.compose(this.rig.position, this.rig.quaternion, this.rig.scale);
+    this.rig.updateMatrixWorld(true);
+    this.camera.position.set(0, 0, 0);
+    this.camera.updateMatrix();
+    this.camera.updateMatrixWorld(true);
+    return true;
+  }
+
   _applyGyroLook() {
     if (this.device.hasSample) {
       this.device.relative(this._scratchQuat);

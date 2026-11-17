@@ -1,18 +1,17 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
-import { ArcticWorld } from './ArcticWorld.js';
+import { CoalMineWorld } from './CoalMineWorld.js';
 import { createViewpointPad } from '../assets/FieldYard.js';
-import { tickRoofCrew } from '../assets/CrewFigures.js';
 
 /**
- * Static exhibition world.
+ * Static exhibition world — automated coal quarry.
  *
  * scene
- *  ├── ArcticWorld (day sky, snow, mountains, helis)
+ *  ├── CoalMineWorld (pit, BelAZ, drones, excavators)
  *  ├── camera
  *  ├── lights
  *  └── exhibitionRoot       (ONE frozen world transform)
- *       └── rigModel
+ *       └── coal complex
  *
  * The root transform is written once per visit, then matrixAutoUpdate=false.
  * Camera motion must not write this object. MindAR never enters this scene.
@@ -26,26 +25,26 @@ export class ExhibitionScene {
     this.anchor.name = 'ExhibitionRoot';
     this.scene.add(this.anchor);
 
-    this.world = new ArcticWorld(this.scene);
+    this.world = new CoalMineWorld(this.scene);
 
-    this.scene.add(new THREE.AmbientLight(0xd7e6f2, 0.68));
-    this.scene.add(new THREE.HemisphereLight(0xc5dceb, 0x8aa3b0, 0.78));
-    const sun = new THREE.DirectionalLight(0xfff4e0, 1.22);
-    sun.position.set(36, 88, 22);
+    this.scene.add(new THREE.AmbientLight(0xc4b8a4, 0.72));
+    this.scene.add(new THREE.HemisphereLight(0xd4c4a8, 0x5a4a38, 0.82));
+    const sun = new THREE.DirectionalLight(0xffe8c8, 1.18);
+    sun.position.set(42, 95, 18);
     if (!CONFIG.performance.disableHeavyEffects) {
       sun.castShadow = true;
       sun.shadow.mapSize.set(1024, 1024);
       sun.shadow.camera.near = 8;
-      sun.shadow.camera.far = 220;
-      sun.shadow.camera.left = -90;
-      sun.shadow.camera.right = 90;
-      sun.shadow.camera.top = 90;
-      sun.shadow.camera.bottom = -90;
+      sun.shadow.camera.far = 280;
+      sun.shadow.camera.left = -120;
+      sun.shadow.camera.right = 120;
+      sun.shadow.camera.top = 120;
+      sun.shadow.camera.bottom = -120;
       sun.shadow.bias = -0.0008;
     }
     this.scene.add(sun);
-    const fill = new THREE.DirectionalLight(0xb9cfe0, 0.42);
-    fill.position.set(-22, 18, -12);
+    const fill = new THREE.DirectionalLight(0xb8a890, 0.45);
+    fill.position.set(-28, 22, -16);
     this.scene.add(fill);
 
     this.model = null;
@@ -75,7 +74,12 @@ export class ExhibitionScene {
 
   tick(now) {
     this.world?.tick(now);
-    tickRoofCrew(this.model, now * 0.001);
+    const complex = this.model?.getObjectByName('CoalMineComplex');
+    complex?.userData?.tick?.(now * 0.001);
+  }
+
+  getFollowEye(out) {
+    return this.world?.getFollowEye?.(out) || null;
   }
 
   attach(model) {
@@ -244,41 +248,55 @@ export class ExhibitionScene {
     const cz = this._center.z;
     const eye = CONFIG.exhibition.eyeHeight;
     const spawn = new THREE.Vector3(0, eye, 0);
-    const radius = Math.max(18, Math.hypot(spawn.x - cx, spawn.z - cz));
+    const radius = Math.max(22, Math.hypot(spawn.x - cx, spawn.z - cz));
     const baseAng = Math.atan2(spawn.x - cx, spawn.z - cz);
     const ring = [
-      { id: 'front', label: 'Перед' },
-      { id: 'right', label: 'Справа' },
-      { id: 'back', label: 'Сзади' },
-      { id: 'left', label: 'Слева' },
+      { id: 'front', label: 'Бровка' },
+      { id: 'right', label: 'Уступ' },
+      { id: 'back', label: 'Дно' },
+      { id: 'left', label: 'Съезд' },
     ];
     this.pads = new THREE.Group();
     this.pads.name = 'ViewpointPads';
     ring.forEach((item, i) => {
       const a = baseAng + i * (Math.PI / 2);
+      let y = eye;
+      if (item.id === 'back') y = Math.max(eye - 8, this._box.min.y + 2);
+      if (item.id === 'right' || item.id === 'left') y = eye - 2.5;
       const position = new THREE.Vector3(
         cx + Math.sin(a) * radius,
-        eye,
+        y,
         cz + Math.cos(a) * radius,
       );
-      this.viewpoints.push({ ...item, position });
+      this.viewpoints.push({ ...item, position, follow: false });
       const pad = createViewpointPad(item.id, item.label);
-      pad.position.set(position.x, 0.04, position.z);
+      pad.position.set(position.x, Math.max(0.04, position.y - eye + 0.04), position.z);
       this.pads.add(pad);
     });
-    const balcony = new THREE.Vector3(
-      cx + this._size.x * 0.36,
-      this._box.min.y + this._size.y * 0.45,
-      cz + this._size.z * 0.16,
+    // High overlook into the quarry
+    const overlook = new THREE.Vector3(
+      cx + this._size.x * 0.42,
+      this._box.min.y + this._size.y * 0.55,
+      cz + this._size.z * 0.12,
     );
     this.viewpoints.push({
-      id: 'balcony',
-      label: 'Балкон',
-      position: balcony,
+      id: 'overlook',
+      label: 'Обзор',
+      position: overlook,
+      follow: false,
     });
-    const high = createViewpointPad('balcony', 'Балкон');
-    high.position.set(balcony.x, balcony.y - eye + 0.04, balcony.z);
+    const high = createViewpointPad('overlook', 'Обзор');
+    high.position.set(overlook.x, overlook.y - eye + 0.04, overlook.z);
     this.pads.add(high);
+
+    // BelAZ follow — position refreshed each frame when active
+    const belazEye = this.getFollowEye(new THREE.Vector3()) || new THREE.Vector3(cx, eye + 3, cz);
+    this.viewpoints.push({
+      id: 'belaz',
+      label: 'БелАЗ',
+      position: belazEye.clone(),
+      follow: true,
+    });
     this.scene.add(this.pads);
   }
 
@@ -296,7 +314,7 @@ export class ExhibitionScene {
   }
 
   _ensureIndustrialDetail() {
-    const rig = this.model?.getObjectByName('ArcticDrillingRig');
+    const rig = this.model?.getObjectByName('CoalMineComplex');
     if (!rig || rig.getObjectByName('IndustrialLights')) return;
 
     const group = new THREE.Group();
@@ -318,13 +336,12 @@ export class ExhibitionScene {
     });
     const bulb = new THREE.SphereGeometry(0.12, 10, 10);
     const markers = [
-      { p: [2.35, 22.95, 0.55], mat: redMat, s: 1.15 },
-      { p: [2.35, 16.4, 0.55], mat: redMat, s: 0.95 },
-      { p: [2.35, 10.2, 0.55], mat: redMat, s: 0.9 },
-      { p: [3.15, 8.05, 0.55], mat: warmMat, s: 1.05 },
-      { p: [1.2, 4.05, 0.62], mat: warmMat, s: 0.85 },
-      { p: [0.4, 4.0, -5.55], mat: warmMat, s: 0.8 },
-      { p: [5.0, 2.2, 1.55], mat: warmMat, s: 0.75 },
+      { p: [-11, 15.0, 8], mat: redMat, s: 1.1 },
+      { p: [10, 10.4, -12], mat: redMat, s: 1.0 },
+      { p: [10, 6.5, -9.2], mat: warmMat, s: 0.95 },
+      { p: [-11, 9.2, 10.3], mat: warmMat, s: 0.9 },
+      { p: [4, 3.2, -10], mat: warmMat, s: 0.8 },
+      { p: [-5, 1.5, 2], mat: warmMat, s: 0.75 },
     ];
     for (const item of markers) {
       const mesh = new THREE.Mesh(bulb, item.mat);
@@ -333,11 +350,11 @@ export class ExhibitionScene {
       group.add(mesh);
     }
 
-    const crown = new THREE.PointLight(0xff3318, 2.1, 18, 2);
-    crown.position.set(2.35, 22.6, 0.55);
+    const crown = new THREE.PointLight(0xff3318, 1.8, 16, 2);
+    crown.position.set(-11, 14.6, 8);
     group.add(crown);
-    const work = new THREE.PointLight(0xffcc88, 1.55, 14, 2);
-    work.position.set(2.2, 8.1, 0.7);
+    const work = new THREE.PointLight(0xffcc88, 1.45, 18, 2);
+    work.position.set(10, 8.5, -10);
     group.add(work);
 
     rig.add(group);

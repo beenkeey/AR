@@ -42,22 +42,30 @@ function cyl(parent, mat, x, y, z, r, h, rx = 0, rz = 0) {
   return m;
 }
 
-/** Tank farm beside the rig. */
+/** Legacy tank farm (kept for old branch assets). */
 export function createFieldYard() {
+  return createCoalYard();
+}
+
+/** Coal stockyard on the quarry rim (not outside the pit area). */
+export function createCoalYard() {
   const root = new THREE.Group();
-  root.name = 'FieldYard';
-  root.add(createTankFarm(-36, -48));
+  root.name = 'CoalYard';
+  // Rim positions relative to scene; pit center is shifted in CoalMineWorld
+  root.add(createStockyard(-78, -18));
+  root.add(createStockyard(72, -40));
   return root;
 }
 
-function createTankFarm(x, z) {
+function createStockyard(x, z) {
   const g = new THREE.Group();
-  g.name = 'TankFarm';
+  g.name = 'CoalStockyard';
   g.position.set(x, 0, z);
-  const shell = steel(0xb7c0c6, 0.38, 0.42, 'metal');
+  const shell = steel(0x6a7278, 0.4, 0.42, 'metal');
   const ring = steel(0x8e979e, 0.45, 0.38, 'metal');
-  const berm = steel(0xd9e2e8, 0.08, 0.92, 'snow');
-  const rust = steel(0x6d5344, 0.28, 0.62, 'rust');
+  const berm = steel(0x5a4a38, 0.08, 0.92, 'rock');
+  const coal = steel(0x1c1a18, 0.04, 0.94, 'rock');
+  const yellow = steel(0xe8b40a, 0.1, 0.5, 'paint');
   box(g, berm, 8, 0.18, 5, 28, 0.36, 18);
   const spots = [
     [0, 0],
@@ -69,11 +77,18 @@ function createTankFarm(x, z) {
   spots.forEach(([tx, tz], i) => {
     const h = 5.2 + (i % 3) * 0.55;
     cyl(g, shell, tx, h * 0.5, tz, 3.1, h);
-    cyl(g, rust, tx, 0.22, tz, 3.14, 0.44);
+    cyl(g, coal, tx, 0.22, tz, 3.14, 0.44);
     cyl(g, ring, tx, h + 0.08, tz, 3.18, 0.16);
     cyl(g, ring, tx, h * 0.45, tz, 3.16, 0.1);
-    cyl(g, ring, tx + 3.35, 1.4, tz, 0.09, 2.8);
+    cyl(g, yellow, tx + 3.35, 1.4, tz, 0.09, 2.8);
   });
+  // Loose coal mounds
+  for (const [tx, tz, s] of [[22, 4, 4], [2, 14, 3.2], [12, -4, 3.8]]) {
+    const pile = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), coal);
+    pile.position.set(tx, s * 0.32, tz);
+    pile.scale.set(s, s * 0.5, s * 0.85);
+    g.add(pile);
+  }
   return g;
 }
 

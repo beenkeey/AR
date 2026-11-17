@@ -95,46 +95,85 @@ export const CONFIG = {
     walkAccel: 0.85,
     walkAccelForce: 2.4,
     walkDamp: 3.4,
-    // Clockwise 90° from the current facing, as seen from above / from the child
-    // looking at the tower. Three.js +Y is CCW, so clockwise = −Y.
-    // Model +X (yellow / equipment / right side) then faces the camera.
     startYaw: -Math.PI / 2,
-    heli: {
-      scale: 3.5,
-      duration: 52,
-      waypoints: [
-        [24, 66, -22],
-        [16, 72, -40],
-        [-10, 68, -34],
-        [-22, 75, -56],
-        [6, 80, -72],
-        [28, 69, -60],
-        [32, 65, -36],
-      ],
-    },
-    heliFar: [
+    // Waypoints are local to quarry center (inside the pit bowl).
+    drones: [
       {
-        scale: 1.35,
-        duration: 88,
+        scale: 3.4,
+        duration: 42,
         waypoints: [
-          [96, 38, -118],
-          [48, 44, -148],
-          [-18, 40, -128],
-          [36, 46, -96],
+          [40, 8, 10],
+          [20, 14, -35],
+          [-25, 12, -30],
+          [-38, 10, 15],
+          [-10, 16, 40],
+          [30, 11, 32],
         ],
       },
       {
-        scale: 1.05,
-        duration: 114,
+        scale: 2.8,
+        duration: 58,
         waypoints: [
-          [-92, 34, 86],
-          [-128, 40, 28],
-          [-86, 32, -36],
-          [-48, 38, 52],
+          [28, -2, 20],
+          [10, 4, -28],
+          [-22, 2, -18],
+          [-18, 6, 24],
+          [8, 3, 30],
+        ],
+      },
+      {
+        scale: 2.4,
+        duration: 50,
+        waypoints: [
+          [15, -8, 8],
+          [-8, -4, -20],
+          [-20, -6, 5],
+          [5, -2, 22],
         ],
       },
     ],
-    bus: { x: 18, y: 0, z: 16, yaw: -0.55, scale: 1.45 },
+    belazRoutes: [
+      {
+        // Upper bench spiral
+        scale: 1.4,
+        duration: 58,
+        waypoints: [
+          [58, -0.1, 8],
+          [40, -0.1, 48],
+          [-8, -0.1, 58],
+          [-52, -0.1, 20],
+          [-48, -0.1, -35],
+          [5, -0.1, -58],
+          [55, -0.1, -25],
+        ],
+      },
+      {
+        // Mid bench
+        scale: 1.2,
+        duration: 64,
+        waypoints: [
+          [46, -5.4, -10],
+          [25, -5.4, 40],
+          [-30, -5.4, 38],
+          [-45, -5.4, -5],
+          [-20, -5.4, -42],
+          [35, -5.4, -35],
+        ],
+      },
+      {
+        // Deep bench toward bottom
+        scale: 1.1,
+        duration: 70,
+        waypoints: [
+          [30, -11.0, 5],
+          [12, -11.0, 28],
+          [-22, -11.0, 20],
+          [-28, -11.0, -12],
+          [-5, -11.0, -30],
+          [24, -11.0, -18],
+        ],
+      },
+    ],
   },
   hyperspace: {
     durationMs: 1900,
@@ -142,7 +181,7 @@ export const CONFIG = {
 };
 
 export const MESSAGES = {
-  scan: 'Наведите камеру на буровую',
+  scan: 'Наведите камеру на маркер месторождения',
   tapToStart: 'Нажмите, чтобы начать',
   loading: 'Загрузка…',
   compiling: 'Подготовка распознавания…',
