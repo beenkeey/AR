@@ -106,9 +106,6 @@ export class ExhibitionScene {
     this.model.visible = true;
     this.anchor.updateMatrixWorld(true);
 
-    const contact = this.anchor.getObjectByName('ContactShadow');
-    if (contact) contact.visible = false;
-
     this._box.setFromObject(this.anchor);
     this._box.getSize(this._size);
     const height = Math.max(this._size.y, 0.01);
@@ -127,7 +124,6 @@ export class ExhibitionScene {
     );
 
     this._freezeRoot();
-    if (contact) contact.visible = true;
     this._hugeScale.copy(this.anchor.scale);
     const overviewRatio = CONFIG.exhibition.overviewHeight / CONFIG.exhibition.hugeHeight;
     this._overviewScale.copy(this._hugeScale).multiplyScalar(overviewRatio);
@@ -243,151 +239,60 @@ export class ExhibitionScene {
 
   _placeViewpoints() {
     this._clearViewpoints();
-    this.anchor.updateMatrixWorld(true);
-    this._box.setFromObject(this.anchor);
-    this._box.getCenter(this._center);
-    this._box.getSize(this._size);
-    const cx = this._center.x;
-    const cz = this._center.z;
     const eye = CONFIG.exhibition.eyeHeight;
-    const spawn = new THREE.Vector3(0, eye, 0);
-    const radius = Math.max(22, Math.hypot(spawn.x - cx, spawn.z - cz));
-    const baseAng = Math.atan2(spawn.x - cx, spawn.z - cz);
-    const ring = [
-      { id: 'front', label: 'Бровка' },
-      { id: 'right', label: 'Уступ' },
-      { id: 'back', label: 'Дно' },
-      { id: 'left', label: 'Съезд' },
-    ];
+    const o = this.world?._quarryOrigin || new THREE.Vector3(0, 0, -CONFIG.exhibition.distance * 0.55);
+    const heightAt = this.world?.terrain?.userData?.heightAt;
+    const rimR = 78;
+    const pitFloor = heightAt ? heightAt(0) : -28.5;
+
     this.pads = new THREE.Group();
     this.pads.name = 'ViewpointPads';
-    ring.forEach((item, i) => {
-      const a = baseAng + i * (Math.PI / 2);
-      let y = eye;
-      if (item.id === 'back') y = Math.max(eye - 8, this._box.min.y + 2);
-      if (item.id === 'right' || item.id === 'left') y = eye - 2.5;
-      const position = new THREE.Vector3(
-        cx + Math.sin(a) * radius,
-        y,
-        cz + Math.cos(a) * radius,
-      );
-      this.viewpoints.push({ ...item, position, follow: false });
-      const pad = createViewpointPad(item.id, item.label);
-      pad.position.set(position.x, Math.max(0.04, position.y - eye + 0.04), position.z);
-      this.pads.add(pad);
-    });
-    // High overlook into the quarry
+
+    // Бровка — rim edge facing spawn / camera approach
+    const front = new THREE.Vector3(o.x, eye, o.z + rimR * 0.92);
+    this.viewpoints.push({ id: 'front', label: 'Бровка', position: front, follow: false });
+    const frontPad = createViewpointPad('front', 'Бровка');
+    frontPad.position.set(front.x, 0.04, front.z);
+    this.pads.add(frontPad);
+
+    // Дно — dead center of the quarry bowl, eye high enough to see benches
+    const bottom = new THREE.Vector3(o.x, pitFloor + 5.5, o.z);
+    this.viewpoints.push({ id: 'bottom', label: 'Дно', position: bottom, follow: false });
+    const bottomPad = createViewpointPad('bottom', 'Дно');
+    bottomPad.position.set(bottom.x, pitFloor + 0.06, bottom.z);
+    this.pads.add(bottomPad);
+
+    // Обзор — high view from the side opposite the rim base
     const overlook = new THREE.Vector3(
-      cx + this._size.x * 0.42,
-      this._box.min.y + this._size.y * 0.55,
-      cz + this._size.z * 0.12,
+      o.x - rimR * 1.2,
+      42,
+      o.z + rimR * 0.45,
     );
-    this.viewpoints.push({
-      id: 'overlook',
-      label: 'Обзор',
-      position: overlook,
-      follow: false,
-    });
+    this.viewpoints.push({ id: 'overlook', label: 'Обзор', position: overlook, follow: false });
     const high = createViewpointPad('overlook', 'Обзор');
-    high.position.set(overlook.x, overlook.y - eye + 0.04, overlook.z);
+    high.position.set(overlook.x, 0.04, overlook.z);
     this.pads.add(high);
 
-    // BelAZ follow — position refreshed each frame when active
-    const belazEye = this.getFollowEye(new THREE.Vector3()) || new THREE.Vector3(cx, eye + 3, cz);
+    // БелАЗ follow — eye refreshed each frame when active
+    const belazEye = this.getFollowEye(new THREE.Vector3()) || new THREE.Vector3(o.x, eye + 3, o.z + 40);
     this.viewpoints.push({
       id: 'belaz',
       label: 'БелАЗ',
       position: belazEye.clone(),
       follow: true,
     });
+
     this.scene.add(this.pads);
   }
 
   _buildColliders() {
-    // Local boxes on ExhibitionRoot. Uniform hugeHeight scale maps them to world metres.
-    this.colliders = [
-      { min: [-1.85, 0.0, -1.72], max: [1.95, 1.18, 1.28], slide: 'xz' },
-      { min: [0.32, 1.02, -0.28], max: [1.18, 6.45, 0.48], slide: 'xz' },
-      { min: [0.88, 0.32, 0.12], max: [1.72, 0.78, 0.98], slide: 'xz' },
-    ].map((item) => ({
-      min: new THREE.Vector3(...item.min),
-      max: new THREE.Vector3(...item.max),
-      slide: item.slide,
-    }));
+    // Invisible placement anchor — no walk-through hull in the pit.
+    this.colliders = [];
   }
 
   _ensureIndustrialDetail() {
-    const rig = this.model?.getObjectByName('CoalMineComplex');
-    if (!rig || rig.getObjectByName('IndustrialLights')) return;
-
-    const group = new THREE.Group();
-    group.name = 'IndustrialLights';
-
-    const redMat = new THREE.MeshStandardMaterial({
-      color: 0xff2a18,
-      emissive: 0xff1e0a,
-      emissiveIntensity: 2.8,
-      roughness: 0.45,
-      metalness: 0.08,
-    });
-    const warmMat = new THREE.MeshStandardMaterial({
-      color: 0xffc56a,
-      emissive: 0xffa845,
-      emissiveIntensity: 1.8,
-      roughness: 0.5,
-      metalness: 0.04,
-    });
-    const bulb = new THREE.SphereGeometry(0.12, 10, 10);
-    const markers = [
-      { p: [-11, 15.0, 8], mat: redMat, s: 1.1 },
-      { p: [10, 10.4, -12], mat: redMat, s: 1.0 },
-      { p: [10, 6.5, -9.2], mat: warmMat, s: 0.95 },
-      { p: [-11, 9.2, 10.3], mat: warmMat, s: 0.9 },
-      { p: [4, 3.2, -10], mat: warmMat, s: 0.8 },
-      { p: [-5, 1.5, 2], mat: warmMat, s: 0.75 },
-    ];
-    for (const item of markers) {
-      const mesh = new THREE.Mesh(bulb, item.mat);
-      mesh.position.set(...item.p);
-      mesh.scale.setScalar(item.s);
-      group.add(mesh);
-    }
-
-    const crown = new THREE.PointLight(0xff3318, 1.8, 16, 2);
-    crown.position.set(-11, 14.6, 8);
-    group.add(crown);
-    const work = new THREE.PointLight(0xffcc88, 1.45, 18, 2);
-    work.position.set(10, 8.5, -10);
-    group.add(work);
-
-    rig.add(group);
-
-    rig.traverse((node) => {
-      if (!node.isMesh || !node.material) return;
-      const mats = Array.isArray(node.material) ? node.material : [node.material];
-      for (const mat of mats) {
-        if (mat.color?.getHex?.() === 0x243038) {
-          mat.emissive.setHex(0x2d5360);
-          mat.emissiveIntensity = 0.32;
-        }
-      }
-    });
-
-    if (!this.anchor.getObjectByName('ContactShadow')) {
-      const shadow = new THREE.Mesh(
-        new THREE.CircleGeometry(2.35, 28),
-        new THREE.MeshBasicMaterial({
-          color: 0x6d7d88,
-          transparent: true,
-          opacity: 0.22,
-          depthWrite: false,
-        }),
-      );
-      shadow.name = 'ContactShadow';
-      shadow.rotation.x = -Math.PI / 2;
-      shadow.position.set(0.05, 0.025, -0.18);
-      this.anchor.add(shadow);
-    }
+    // No ContactShadow / IndustrialLights on the MindAR anchor —
+    // those floated as black discs / a hanging base over the pit.
   }
 
   resolveCamera(worldPos) {

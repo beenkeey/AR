@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Quarry preview QA</title>
+  <style>
+    html, body { margin: 0; background: #111; color: #eee; font: 14px/1.4 system-ui; }
+    #wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; }
+    canvas { width: 100%; height: auto; background: #222; border: 1px solid #444; }
+    h1 { margin: 8px 12px; font-size: 16px; }
+    .label { padding: 4px 8px; }
+    #checks { margin: 8px 12px; white-space: pre-wrap; font-family: ui-monospace, monospace; }
+  </style>
+</head>
+<body>
+  <h1>Quarry visual QA — Бровка / Дно / Обзор / БелАЗ</h1>
+  <pre id="checks">loading…</pre>
+  <div id="wrap"></div>
+  <script type="module">
+    import * as THREE from 'three';
+    import { ExhibitionScene } from './src/ar/ExhibitionScene.js';
+    import { createCoalMineComplex } from './src/assets/CoalMineComplex.js';
+
+    const scene = new ExhibitionScene();
+    const model = createCoalMineComplex();
+    scene.attach(model);
+    scene.placeStatic();
+    scene.setOpacity(1);
+    scene.restoreMaterials();
+
+    const views = ['front', 'bottom', 'overlook', 'belaz'];
+    const wrap = document.getElementById('wrap');
+    const checks = [];
+
+    // Structural checks
+    const complex = model;
+    const contactInComplex = !!complex.getObjectByName('ContactShadow');
+    const contactInAnchor = !!scene.anchor.getObjectByName('ContactShadow');
+    const lights = !!complex.getObjectByName('IndustrialLights');
+    const rim = scene.scene.getObjectByName('RimInfrastructure');
+    let minBaseR = Infinity;
+    let spherePiles = 0;
+    rim?.traverse((n) => {
+      if (!n.isMesh) return;
+      if (n.geometry?.type === 'SphereGeometry') spherePiles += 1;
+      const p = new THREE.Vector3();
+      n.getWorldPosition(p);
+      const o = scene.world._quarryOrigin;
+      const r = Math.hypot(p.x - o.x, p.z - o.z);
+      // skip berm (torus around rim)
+      if (n.geometry?.type === 'TorusGeometry') return;
+      if (r > 85) minBaseR = Math.min(minBaseR, r);
+    });
+
+    const vp = Object.fromEntries(scene.viewpoints.map((v) => [v.id, v]));
+    const o = scene.world._quarryOrigin;
+    const heightAt = scene.world?.terrain?.userData?.heightAt;
+    const pitFloor = heightAt ? heightAt(0) : -28.5;
+    const bottomOk = vp.bottom
+      && Math.hypot(vp.bottom.position.x - o.x, vp.bottom.position.z - o.z) < 0.5
+      && vp.bottom.position.y < -20;
+    const onlyFour = scene.viewpoints.length === 4
+      && views.every((id) => scene.viewpoints.some((v) => v.id === id));
+
+    checks.push(`ContactShadow in complex: ${contactInComplex ? 'FAIL' : 'ok'}`);
+    checks.push(`ContactShadow on anchor: ${contactInAnchor ? 'FAIL' : 'ok'}`);
+    checks.push(`IndustrialLights: ${lights ? 'FAIL' : 'ok'}`);
+    checks.push(`Rim base min radius (meshes >85): ${minBaseR.toFixed(1)} (want ≥95)`);
+    checks.push(`Sphere coal piles in rim: ${spherePiles}`);
+    checks.push(`Viewpoints exactly 4 (бровка/дно/обзор/белаз): ${onlyFour ? 'ok' : 'FAIL'} → ${scene.viewpoints.map((v) => v.id).join(',')}`);
+    checks.push(`Дно at quarry center + deep: ${bottomOk ? 'ok' : 'FAIL'} y=${vp.bottom?.position.y?.toFixed(2)}`);
+    checks.push(`Colliders empty: ${scene.colliders.length === 0 ? 'ok' : 'FAIL'}`);
+    document.getElementById('checks').textContent = checks.join('\n');
+
+    const W = 640;
+    const H = 400;
+    for (const id of views) {
+      const view = scene.getViewpoint(id);
+      const cell = document.createElement('div');
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = `${view.label} (${id})  pos ${view.position.x.toFixed(1)}, ${view.position.y.toFixed(1)}, ${view.position.z.toFixed(1)}`;
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      renderer.setSize(W, H);
+      renderer.setPixelRatio(1);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      const cam = new THREE.PerspectiveCamera(55, W / H, 0.5, 500);
+      if (id === 'belaz') {
+        const eye = scene.getFollowEye(new THREE.Vector3());
+        if (eye) cam.position.copy(eye);
+        else cam.position.copy(view.position);
+        cam.lookAt(o.x, o.y - 5, o.z);
+      } else if (id === 'bottom') {
+        cam.position.copy(view.position);
+        // Look across toward a mid bench (inward-facing walls stay solid)
+        cam.lookAt(o.x + 38, -12, o.z);
+      } else if (id === 'overlook') {
+        cam.position.copy(view.position);
+        cam.lookAt(o.x, -8, o.z);
+      } else {
+        cam.position.copy(view.position);
+        cam.lookAt(o.x, -10, o.z);
+      }
+      // tick once so BelAZ poses settle
+      scene.tick(1000);
+      renderer.render(scene.scene, cam);
+      cell.append(label, renderer.domElement);
+      wrap.appendChild(cell);
+    }
+
+    document.title = 'Quarry preview QA ready';
+  </script>
+</body>
+</html>

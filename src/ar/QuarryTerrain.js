@@ -96,6 +96,8 @@ export function createQuarryTerrain({
       roughness: 0.92,
       metalness: 0.04,
       flatShading: false,
+      // Visible from pit floor (дно) looking up the benches
+      side: THREE.DoubleSide,
     }),
   );
   mesh.receiveShadow = true;

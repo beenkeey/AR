@@ -10,9 +10,7 @@ export class BackButton {
 
 const VIEW_META = {
   front: { icon: '▲' },
-  right: { icon: '▶' },
-  back: { icon: '▼' },
-  left: { icon: '◀' },
+  bottom: { icon: '▼' },
   overlook: { icon: '▣' },
   belaz: { icon: '◆' },
 };

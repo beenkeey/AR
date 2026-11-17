@@ -102,12 +102,11 @@ export class CoalMineWorld {
     return group;
   }
 
-  /** Buildings / stockyard ONLY outside the haul roads (r > 80). */
+  /** Base cluster on +X rim plateau only (r ≥ 95), clear of haul roads. */
   _addRimInfrastructure() {
-    const o = this._quarryOrigin;
     const group = new THREE.Group();
     group.name = 'RimInfrastructure';
-    group.position.copy(o);
+    group.position.copy(this._quarryOrigin);
 
     const concrete = mat(0xb4aea4, 0.08, 0.8);
     const yellow = mat(0xf0c000, 0.15, 0.45);
@@ -117,60 +116,58 @@ export class CoalMineWorld {
     const coal = mat(0x2a2622, 0.05, 0.92);
     const metal = mat(0x8a949c, 0.5, 0.35);
 
-    // Crusher — far +X rim
-    box(group, concrete, 92, 5, -10, 8, 10, 8);
-    box(group, orange, 92, 10.3, -10, 8.4, 0.4, 8.4);
-    box(group, yellow, 92, 6, -5.8, 5, 4, 0.25);
-    box(group, teal, 92, 12, -10, 1.6, 3, 1.6);
+    // Pad under the whole base
+    box(group, concrete, 108, 0.12, 6, 42, 0.24, 36);
 
-    // Control tower — far −X rim
-    box(group, concrete, -90, 7, 15, 6, 14, 6);
-    box(group, teal, -90, 14.3, 15, 6.4, 0.4, 6.4);
-    box(group, yellow, -90, 11, 18.1, 4, 2.4, 0.2);
-    box(group, dark, -90, 16.5, 15, 0.25, 3.5, 0.25);
+    // Crusher block — grounded (center Y = half height)
+    box(group, concrete, 100, 4.5, -4, 9, 9, 9);
+    box(group, orange, 100, 9.2, -4, 9.4, 0.4, 9.4);
+    box(group, yellow, 100, 5.5, 0.7, 5.5, 3.5, 0.25);
+    box(group, teal, 100, 10.8, -4, 1.8, 2.8, 1.8);
 
-    // Conveyor from rim toward pit (stops before roads)
+    // Control tower next to crusher (same side, not opposite rim)
+    box(group, concrete, 112, 6, 14, 7, 12, 7);
+    box(group, teal, 112, 12.3, 14, 7.4, 0.4, 7.4);
+    box(group, yellow, 112, 9.5, 17.6, 4.5, 2.5, 0.2);
+    box(group, dark, 112, 14.2, 14, 0.28, 3.2, 0.28);
+
+    // Short conveyor on the pad (does not reach haul roads)
     const conv = new THREE.Group();
-    box(conv, metal, 0, 0, 0, 28, 0.45, 1.5);
-    box(conv, dark, 0, 0.32, 0, 27.5, 0.12, 1.15);
-    for (let i = -12; i <= 12; i += 4) {
-      box(conv, yellow, i, -0.8, 0.7, 0.2, 1.5, 0.2);
-      box(conv, yellow, i, -0.8, -0.7, 0.2, 1.5, 0.2);
+    box(conv, metal, 0, 0, 0, 16, 0.4, 1.4);
+    box(conv, dark, 0, 0.28, 0, 15.5, 0.1, 1.05);
+    for (let i = -6; i <= 6; i += 3) {
+      box(conv, yellow, i, -0.7, 0.65, 0.18, 1.3, 0.18);
+      box(conv, yellow, i, -0.7, -0.65, 0.18, 1.3, 0.18);
     }
-    conv.position.set(78, 3.2, -28);
-    conv.rotation.y = 0.9;
-    conv.rotation.z = 0.12;
+    conv.position.set(104, 2.4, 4);
+    conv.rotation.y = 0.35;
     group.add(conv);
 
-    // Coal stock piles on rim
-    for (const [x, z, s] of [
-      [88, 25, 7],
-      [95, 35, 5.5],
-      [-85, -30, 6.5],
-      [-95, -18, 5],
+    // Angular coal heaps (not spheres)
+    for (const [x, z, sx, sy, sz] of [
+      [118, -8, 8, 3.2, 6],
+      [122, 4, 6, 2.6, 5],
+      [116, 22, 7, 3.0, 5.5],
     ]) {
-      const pile = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), coal);
-      pile.position.set(x, s * 0.35, z);
-      pile.scale.set(s, s * 0.52, s * 0.9);
-      pile.castShadow = true;
-      group.add(pile);
+      box(group, coal, x, sy * 0.5, z, sx, sy, sz);
+      box(group, coal, x + 1.5, sy * 0.35, z - 1.2, sx * 0.6, sy * 0.7, sz * 0.7);
     }
 
-    // Silos
-    for (const [x, z] of [[100, 8], [108, 14], [-100, 5]]) {
-      const silo = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 9, 14), metal);
-      silo.position.set(x, 4.5, z);
+    // Silos on the same side
+    for (const [x, z] of [[124, 12], [128, 20]]) {
+      const silo = new THREE.Mesh(new THREE.CylinderGeometry(3.0, 3.0, 8, 14), metal);
+      silo.position.set(x, 4.0, z);
       group.add(silo);
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.4, 0.35, 14), orange);
-      cap.position.set(x, 9.2, z);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.35, 14), orange);
+      cap.position.set(x, 8.2, z);
       group.add(cap);
     }
 
-    // Light masts on rim
-    for (const [x, z] of [[82, 40], [-82, 40], [82, -45], [-70, -50]]) {
-      box(group, dark, x, 6, z, 0.3, 12, 0.3);
+    // Light masts around the base cluster
+    for (const [x, z] of [[96, 28], [120, 30], [96, -22], [124, -16]]) {
+      box(group, dark, x, 5.5, z, 0.28, 11, 0.28);
       const lamp = new THREE.Mesh(
-        new THREE.BoxGeometry(0.9, 0.4, 0.9),
+        new THREE.BoxGeometry(0.85, 0.35, 0.85),
         new THREE.MeshStandardMaterial({
           color: 0xffe08a,
           emissive: 0xffc056,
@@ -178,20 +175,20 @@ export class CoalMineWorld {
           roughness: 0.4,
         }),
       );
-      lamp.position.set(x, 12.2, z);
+      lamp.position.set(x, 11.2, z);
       group.add(lamp);
-      const pl = new THREE.PointLight(0xffd090, 1.5, 40, 1.8);
-      pl.position.set(x, 11.8, z);
+      const pl = new THREE.PointLight(0xffd090, 1.4, 38, 1.8);
+      pl.position.set(x, 10.8, z);
       group.add(pl);
     }
 
-    // Safety berm posts
+    // Safety berm around pit rim
     const berm = new THREE.Mesh(
-      new THREE.TorusGeometry(79, 0.85, 8, WEAK ? 40 : 64),
+      new THREE.TorusGeometry(79.5, 0.7, 8, WEAK ? 40 : 64),
       mat(0x2faf55, 0.1, 0.5),
     );
     berm.rotation.x = Math.PI / 2;
-    berm.position.y = 0.45;
+    berm.position.y = 0.4;
     group.add(berm);
 
     group.traverse((n) => {
