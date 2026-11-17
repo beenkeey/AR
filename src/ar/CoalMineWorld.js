@@ -4,6 +4,7 @@ import { createBelAZ } from '../assets/BelAZ.js';
 import { createMiningDrone } from '../assets/MiningDrone.js';
 import { createExcavator, tickExcavator } from '../assets/Excavator.js';
 import { createQuarryTerrain } from './QuarryTerrain.js';
+import { buildHaulLoop, queryHaul } from './HaulRoad.js';
 
 const WEAK = CONFIG.performance.weak;
 const FOG = 0xa8c8e8;
@@ -201,14 +202,15 @@ export class CoalMineWorld {
   }
 
   _addBelAZs() {
+    const loop = buildHaulLoop();
     const routes = CONFIG.exhibition.belazRoutes || [];
     routes.forEach((route, i) => {
       const truck = createBelAZ();
-      truck.scale.setScalar(route.scale || 1.35);
+      truck.scale.setScalar(route.scale || 1.15);
       this.scene.add(truck);
-      const pts = (route.waypoints || []).map((p) => {
+      const pts = loop.map((p) => {
         const v = new THREE.Vector3();
-        this._quarryLocalToWorld(p[0], p[1], p[2], v);
+        this._quarryLocalToWorld(p.x, p.y + 0.05, p.z, v);
         return v;
       });
       const mover = {
@@ -255,15 +257,22 @@ export class CoalMineWorld {
 
   _addBenchExcavators() {
     const o = this._quarryOrigin;
-    const poses = [
-      { x: 46, y: -9.8, z: 12, yaw: 1.2, s: 1.45 },
-      { x: -30, y: -15.0, z: -22, yaw: 2.4, s: 1.25 },
-    ];
-    for (const p of poses) {
+    const heightAt = this.terrain?.userData?.heightAt;
+    // Sit in the bench gap between spiral windings. Boom (+X) runs along the road.
+    for (const [radius, scale] of [[36, 1.15], [52, 1.28]]) {
+      let best = null;
+      for (let i = 0; i < 48; i += 1) {
+        const ang = (i / 48) * Math.PI * 2;
+        const x = Math.cos(ang) * radius;
+        const z = Math.sin(ang) * radius;
+        const q = queryHaul(x, z);
+        if (!best || q.dist > best.dist) best = { x, z, dist: q.dist, tx: q.tx, tz: q.tz };
+      }
       const ex = createExcavator();
-      ex.position.set(o.x + p.x, p.y, o.z + p.z);
-      ex.rotation.y = p.yaw;
-      ex.scale.setScalar(p.s);
+      const y = heightAt ? heightAt(radius) : -12;
+      ex.position.set(o.x + best.x, y, o.z + best.z);
+      ex.rotation.y = Math.atan2(best.tz, best.tx);
+      ex.scale.setScalar(scale);
       this.scene.add(ex);
       this.excavators.push(ex);
     }

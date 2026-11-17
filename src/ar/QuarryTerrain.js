@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { HAUL, buildHaulLoop, createHaulRoadMesh, queryHaul } from './HaulRoad.js';
 
 /**
  * Continuous open-pit mesh: radial terraces with short faces — no sky leaks.
@@ -57,6 +58,7 @@ export function createQuarryTerrain({
   const colors = [];
   const indices = [];
   const tmpC = new THREE.Color();
+  const asphaltC = new THREE.Color(0x3a4450);
 
   for (let ir = 0; ir <= radial; ir += 1) {
     const r = (ir / radial) * rimR;
@@ -64,10 +66,27 @@ export function createQuarryTerrain({
       const a = (ia / angular) * Math.PI * 2;
       const x = Math.cos(a) * r;
       const z = Math.sin(a) * r;
-      let y = heightAt(r);
-      y += Math.sin(a * 6 + r * 0.2) * 0.08 + Math.cos(a * 3 - r * 0.15) * 0.06;
+      const bench = heightAt(r)
+        + Math.sin(a * 6 + r * 0.2) * 0.08
+        + Math.cos(a * 3 - r * 0.15) * 0.06;
+      let y = bench;
+      const haul = queryHaul(x, z);
+      const edge = HAUL.cover + HAUL.shoulder;
+      if (haul.dist < edge) {
+        const cut = haul.y - 0.2;
+        if (haul.dist <= HAUL.cover) {
+          y = cut;
+          tmpC.setHex(0x3a4450);
+        } else {
+          const k = (haul.dist - HAUL.cover) / HAUL.shoulder;
+          const s = k * k * (3 - 2 * k);
+          y = THREE.MathUtils.lerp(cut, bench, s);
+          tmpC.copy(colorAt(bench)).lerp(asphaltC, 1 - s);
+        }
+      } else {
+        tmpC.copy(colorAt(y));
+      }
       positions.push(x, y, z);
-      tmpC.copy(colorAt(y));
       colors.push(tmpC.r, tmpC.g, tmpC.b);
     }
   }
@@ -104,54 +123,20 @@ export function createQuarryTerrain({
   mesh.castShadow = true;
   group.add(mesh);
 
-  const roadMat = new THREE.MeshStandardMaterial({ color: 0x3e4752, roughness: 0.8, metalness: 0.1 });
-  const lineMat = new THREE.MeshStandardMaterial({ color: 0xf0c400, roughness: 0.45, metalness: 0.1 });
-  const roadDefs = [
-    { r: 71, y: 0.08, w: 5.2 },
-    { r: 58, y: -4.72, w: 5.0 },
-    { r: 46, y: -9.72, w: 4.8 },
-    { r: 34, y: -14.92, w: 4.6 },
-    { r: 22, y: -20.12, w: 4.2 },
-  ];
-  for (const rd of roadDefs) {
-    const road = new THREE.Mesh(
-      new THREE.RingGeometry(rd.r - rd.w * 0.5, rd.r + rd.w * 0.5, angular),
-      roadMat,
-    );
-    road.rotation.x = -Math.PI / 2;
-    road.position.y = rd.y;
-    road.receiveShadow = true;
-    group.add(road);
-    const line = new THREE.Mesh(
-      new THREE.RingGeometry(rd.r - 0.1, rd.r + 0.1, angular),
-      lineMat,
-    );
-    line.rotation.x = -Math.PI / 2;
-    line.position.y = rd.y + 0.025;
-    group.add(line);
+  const haul = buildHaulLoop();
+  let yMin = Infinity;
+  let yMax = -Infinity;
+  let rMin = Infinity;
+  let rMax = 0;
+  for (const p of haul) {
+    yMin = Math.min(yMin, p.y);
+    yMax = Math.max(yMax, p.y);
+    const rr = Math.hypot(p.x, p.z);
+    rMin = Math.min(rMin, rr);
+    rMax = Math.max(rMax, rr);
   }
-
-  for (let i = 0; i < roadDefs.length - 1; i += 1) {
-    const a = i * 1.55 + 0.4;
-    const r0 = roadDefs[i].r;
-    const r1 = roadDefs[i + 1].r;
-    const y0 = roadDefs[i].y;
-    const y1 = roadDefs[i + 1].y;
-    const ramp = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.35, 15), roadMat);
-    ramp.position.set(
-      Math.cos(a) * ((r0 + r1) * 0.5),
-      (y0 + y1) * 0.5,
-      Math.sin(a) * ((r0 + r1) * 0.5),
-    );
-    ramp.lookAt(Math.cos(a) * r1, y1, Math.sin(a) * r1);
-    const pitch = Math.atan2(y0 - y1, Math.abs(r0 - r1));
-    ramp.rotateX(-pitch * 0.55);
-    ramp.castShadow = true;
-    ramp.receiveShadow = true;
-    group.add(ramp);
-  }
-
-  group.userData.roadDefs = roadDefs;
+  group.add(createHaulRoadMesh());
   group.userData.heightAt = heightAt;
+  group.userData.haul = { yMin, yMax, rMin, rMax, points: haul.length };
   return group;
 }

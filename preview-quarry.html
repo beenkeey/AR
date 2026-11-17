@@ -70,6 +70,39 @@
     checks.push(`Viewpoints exactly 4 (бровка/дно/обзор/белаз): ${onlyFour ? 'ok' : 'FAIL'} → ${scene.viewpoints.map((v) => v.id).join(',')}`);
     checks.push(`Дно at quarry center + deep: ${bottomOk ? 'ok' : 'FAIL'} y=${vp.bottom?.position.y?.toFixed(2)}`);
     checks.push(`Colliders empty: ${scene.colliders.length === 0 ? 'ok' : 'FAIL'}`);
+
+    const haul = scene.world?.terrain?.userData?.haul;
+    const climb = haul ? haul.yMax - haul.yMin : 0;
+    checks.push(`Haul climb ${climb.toFixed(1)} m, r ${haul?.rMin?.toFixed(1)}–${haul?.rMax?.toFixed(1)} (want climb>15, r 12–77)`);
+    const haulOk = haul && climb > 15 && haul.rMin > 12 && haul.rMax < 77;
+    checks.push(`Haul stays in the pit and climbs: ${haulOk ? 'ok' : 'FAIL'}`);
+
+    function settle(sec) {
+      const step = 0.05;
+      for (let t = step; t <= sec; t += step) scene.tick(t * 1000);
+      scene.tick(sec * 1000);
+    }
+
+    const ys = [];
+    const radii = [];
+    for (const sec of [5, 25, 50, 75]) {
+      settle(sec);
+      for (const truck of scene.world.trucks) {
+        ys.push(truck.group.position.y);
+        radii.push(Math.hypot(truck.group.position.x - o.x, truck.group.position.z - o.z));
+      }
+    }
+    const truckClimb = Math.max(...ys) - Math.min(...ys);
+    checks.push(`BelAZ height range over loop: ${truckClimb.toFixed(1)} (want >15)`);
+    checks.push(`BelAZ radius range: ${Math.min(...radii).toFixed(1)}–${Math.max(...radii).toFixed(1)}`);
+    const faceDots = scene.world.trucks.map((t) => {
+      const f = new THREE.Vector3(1, 0, 0).applyQuaternion(t.group.quaternion);
+      const m = t._next.clone().sub(t._pos);
+      m.y = 0;
+      return f.dot(m.normalize());
+    });
+    checks.push(`BelAZ nose along travel (1 = forward): ${faceDots.map((d) => d.toFixed(2)).join(', ')}`);
+    checks.push(`Trucks: ${scene.world.trucks.length}`);
     document.getElementById('checks').textContent = checks.join('\n');
 
     const W = 640;
@@ -85,11 +118,17 @@
       renderer.setPixelRatio(1);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       const cam = new THREE.PerspectiveCamera(55, W / H, 0.5, 500);
+      const poseSec = id === 'belaz' ? 12 : 8;
+      settle(poseSec);
       if (id === 'belaz') {
         const eye = scene.getFollowEye(new THREE.Vector3());
+        const truck = scene.world.followTruck.group;
         if (eye) cam.position.copy(eye);
         else cam.position.copy(view.position);
-        cam.lookAt(o.x, o.y - 5, o.z);
+        const ahead = new THREE.Vector3(14, 0.4, 0.2)
+          .applyQuaternion(truck.quaternion)
+          .add(truck.position);
+        cam.lookAt(ahead);
       } else if (id === 'bottom') {
         cam.position.copy(view.position);
         // Look across toward a mid bench (inward-facing walls stay solid)
@@ -101,8 +140,6 @@
         cam.position.copy(view.position);
         cam.lookAt(o.x, -10, o.z);
       }
-      // tick once so BelAZ poses settle
-      scene.tick(1000);
       renderer.render(scene.scene, cam);
       cell.append(label, renderer.domElement);
       wrap.appendChild(cell);

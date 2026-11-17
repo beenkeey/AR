@@ -123,53 +123,11 @@ export const CONFIG = {
         ],
       },
     ],
-    // Circular haul-road loops on separate benches + phase offset (not one line)
+    // Same spiral (see HaulRoad). Phases put trucks at the floor, mid-ramp and rim.
     belazRoutes: [
-      {
-        scale: 1.55,
-        duration: 64,
-        phase: 0.0,
-        waypoints: [
-          [71, 0.06, 0],
-          [50, 0.06, 50],
-          [0, 0.06, 71],
-          [-50, 0.06, 50],
-          [-71, 0.06, 0],
-          [-50, 0.06, -50],
-          [0, 0.06, -71],
-          [50, 0.06, -50],
-        ],
-      },
-      {
-        scale: 1.35,
-        duration: 72,
-        phase: 0.37,
-        waypoints: [
-          [58, -4.72, 0],
-          [41, -4.72, 41],
-          [0, -4.72, 58],
-          [-41, -4.72, 41],
-          [-58, -4.72, 0],
-          [-41, -4.72, -41],
-          [0, -4.72, -58],
-          [41, -4.72, -41],
-        ],
-      },
-      {
-        scale: 1.2,
-        duration: 80,
-        phase: 0.68,
-        waypoints: [
-          [46, -9.72, 0],
-          [32.5, -9.72, 32.5],
-          [0, -9.72, 46],
-          [-32.5, -9.72, 32.5],
-          [-46, -9.72, 0],
-          [-32.5, -9.72, -32.5],
-          [0, -9.72, -46],
-          [32.5, -9.72, -32.5],
-        ],
-      },
+      { scale: 1.2, duration: 100, phase: 0.02 },
+      { scale: 1.1, duration: 100, phase: 0.24 },
+      { scale: 1.02, duration: 100, phase: 0.47 },
     ],
   },
   hyperspace: {

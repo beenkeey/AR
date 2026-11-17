@@ -248,8 +248,9 @@ export class ExhibitionScene {
     this.pads = new THREE.Group();
     this.pads.name = 'ViewpointPads';
 
-    // Бровка — rim edge facing spawn / camera approach
-    const front = new THREE.Vector3(o.x, eye, o.z + rimR * 0.92);
+    // Бровка — lip of the pit, just inside the berm, looking down the spiral.
+    // Far enough from the haul line (r ≤ 71) that a passing BelAZ does not fill the lens.
+    const front = new THREE.Vector3(o.x, 2.15, o.z + 76.4);
     this.viewpoints.push({ id: 'front', label: 'Бровка', position: front, follow: false });
     const frontPad = createViewpointPad('front', 'Бровка');
     frontPad.position.set(front.x, 0.04, front.z);
