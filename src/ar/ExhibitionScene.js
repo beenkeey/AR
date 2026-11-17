@@ -27,10 +27,10 @@ export class ExhibitionScene {
 
     this.world = new CoalMineWorld(this.scene);
 
-    this.scene.add(new THREE.AmbientLight(0xfff0e0, 0.85));
-    this.scene.add(new THREE.HemisphereLight(0xb8d8ff, 0xc48a4a, 0.95));
-    const sun = new THREE.DirectionalLight(0xfff5e6, 1.45);
-    sun.position.set(42, 95, 18);
+    this.scene.add(new THREE.AmbientLight(0xfff4e8, 0.78));
+    this.scene.add(new THREE.HemisphereLight(0xb0d4ff, 0xb07a48, 1.05));
+    const sun = new THREE.DirectionalLight(0xfff8ee, 1.55);
+    sun.position.set(48, 110, 28);
     if (!CONFIG.performance.disableHeavyEffects) {
       sun.castShadow = true;
       sun.shadow.mapSize.set(1024, 1024);

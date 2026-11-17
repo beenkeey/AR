@@ -47,13 +47,10 @@ export function createFieldYard() {
   return createCoalYard();
 }
 
-/** Coal stockyard on the quarry rim (not outside the pit area). */
+/** Unused — rim stockyards are built inside CoalMineWorld now. */
 export function createCoalYard() {
   const root = new THREE.Group();
   root.name = 'CoalYard';
-  // Rim positions relative to scene; pit center is shifted in CoalMineWorld
-  root.add(createStockyard(-78, -18));
-  root.add(createStockyard(72, -40));
   return root;
 }
 

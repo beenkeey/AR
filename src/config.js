@@ -16,8 +16,8 @@ const weak = isWeakDevice();
 export const DEBUG = params.get('debug') === '1';
 export const WORLD_TRACKING_ENABLED = params.get('wt') !== '0' && params.get('worldTracking') !== '0';
 
-/** World-space bounding height of the whole industrial complex, metres. */
-export const EXHIBITION_MODEL_SCALE = 55;
+/** World-space bounding height of the centerpiece, metres (keep modest vs pit). */
+export const EXHIBITION_MODEL_SCALE = 12;
 
 const targetParam = params.get('target');
 // Custom coal-quarry marker (runtime compile). ?target=test → old MindAR Soft card.
@@ -80,7 +80,7 @@ export const CONFIG = {
     modelScale: EXHIBITION_MODEL_SCALE,
     hugeHeight: EXHIBITION_MODEL_SCALE,
     overviewHeight: 2.35,
-    distance: 50,
+    distance: 38,
     eyeHeight: 1.22,
     lookY: 0.05,
     lookDistance: 2.4,
@@ -97,78 +97,77 @@ export const CONFIG = {
     walkDamp: 3.4,
     startYaw: -Math.PI / 2,
     // Waypoints are local to quarry center (inside the pit bowl).
-    // Compact drones (not helicopter-sized), higher over the pit
+    // Small drones high over the bowl
     drones: [
       {
-        scale: 1.15,
-        duration: 42,
+        scale: 1.05,
+        duration: 46,
+        phase: 0,
         waypoints: [
-          [36, 38, 8],
-          [16, 44, -30],
-          [-22, 42, -26],
-          [-34, 40, 12],
-          [-8, 46, 34],
-          [26, 41, 28],
+          [40, 36, 10],
+          [10, 42, -34],
+          [-32, 38, -18],
+          [-20, 44, 28],
+          [22, 40, 30],
         ],
       },
       {
-        scale: 0.95,
-        duration: 55,
+        scale: 0.9,
+        duration: 58,
+        phase: 0.4,
         waypoints: [
-          [22, 34, 16],
-          [6, 40, -24],
-          [-18, 36, -14],
-          [-14, 42, 20],
-          [8, 38, 26],
-        ],
-      },
-      {
-        scale: 0.85,
-        duration: 48,
-        waypoints: [
-          [12, 48, 4],
-          [-6, 52, -16],
-          [-16, 50, 6],
-          [4, 49, 18],
+          [18, 48, 20],
+          [-14, 52, -22],
+          [-28, 46, 8],
+          [8, 50, 26],
         ],
       },
     ],
+    // Circular haul-road loops on separate benches + phase offset (not one line)
     belazRoutes: [
       {
         scale: 1.55,
-        duration: 58,
+        duration: 64,
+        phase: 0.0,
         waypoints: [
-          [67, 0.0, 8],
-          [45, 0.0, 50],
-          [-10, 0.0, 64],
-          [-55, 0.0, 22],
-          [-50, 0.0, -38],
-          [8, 0.0, -62],
-          [60, 0.0, -28],
+          [71, 0.06, 0],
+          [50, 0.06, 50],
+          [0, 0.06, 71],
+          [-50, 0.06, 50],
+          [-71, 0.06, 0],
+          [-50, 0.06, -50],
+          [0, 0.06, -71],
+          [50, 0.06, -50],
         ],
       },
       {
         scale: 1.35,
-        duration: 64,
+        duration: 72,
+        phase: 0.37,
         waypoints: [
-          [54, -5.5, -10],
-          [28, -5.5, 42],
-          [-32, -5.5, 40],
-          [-48, -5.5, -6],
-          [-22, -5.5, -44],
-          [38, -5.5, -36],
+          [58, -4.72, 0],
+          [41, -4.72, 41],
+          [0, -4.72, 58],
+          [-41, -4.72, 41],
+          [-58, -4.72, 0],
+          [-41, -4.72, -41],
+          [0, -4.72, -58],
+          [41, -4.72, -41],
         ],
       },
       {
         scale: 1.2,
-        duration: 70,
+        duration: 80,
+        phase: 0.68,
         waypoints: [
-          [42, -11.0, 5],
-          [14, -11.0, 30],
-          [-24, -11.0, 22],
-          [-30, -11.0, -12],
-          [-6, -11.0, -32],
-          [26, -11.0, -20],
+          [46, -9.72, 0],
+          [32.5, -9.72, 32.5],
+          [0, -9.72, 46],
+          [-32.5, -9.72, 32.5],
+          [-46, -9.72, 0],
+          [-32.5, -9.72, -32.5],
+          [0, -9.72, -46],
+          [32.5, -9.72, -32.5],
         ],
       },
     ],

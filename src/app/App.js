@@ -340,6 +340,8 @@ export class App {
     const view = this.exhibition.getViewpoint(id);
     if (!view) return;
     this._followViewpoint = view.follow ? id : null;
+    // Hide ground pads while riding BelAZ — they clutter the cab view
+    if (this.exhibition.pads) this.exhibition.pads.visible = !view.follow;
     if (view.follow) {
       const eye = this.exhibition.getFollowEye(this._followEye);
       if (eye) view.position.copy(eye);
