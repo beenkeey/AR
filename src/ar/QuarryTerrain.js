@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { HAUL, buildHaulLoop, createHaulRoadMesh, queryHaul } from './HaulRoad.js';
 import { coalAt, coalDigSites } from './CoalSeams.js';
+import { surfaceTexture } from '../assets/finishMaps.js';
 
 /**
  * Continuous open-pit mesh: radial terraces with short faces — no sky leaks.
@@ -21,7 +22,7 @@ export function createQuarryTerrain({
     [52, -9.8],
     [40, -15.0],
     [28, -20.2],
-    [16, -25.0],
+    [16, -28.5],
     [0, -28.5],
   ];
 
@@ -63,47 +64,22 @@ export function createQuarryTerrain({
   const angular = segs;
   const positions = [];
   const colors = [];
+  const uvs = [];
   const indices = [];
   const tmpC = new THREE.Color();
-  const colRim = new THREE.Color(0x8d7358);
-  const colMid = new THREE.Color(0x6a5340);
-  const colLow = new THREE.Color(0x3e342c);
-  const colFace = new THREE.Color(0x4e4942);
-  const colCrest = new THREE.Color(0x3a3026);
-  const colDeep = new THREE.Color(0x221e1a);
-  const colOchre = new THREE.Color(0x8a5a34);
-  const colGray = new THREE.Color(0x6e6a62);
+  const colSoil = new THREE.Color(0xa88462);
+  const colDeep = new THREE.Color(0x7d6248);
+  const colFace = new THREE.Color(0x6d6258);
   const gravelC = new THREE.Color(0xc4beb4);
-  const spoilC = new THREE.Color(0x4a382c);
+  const spoilC = new THREE.Color(0x6b5344);
   const coalC = new THREE.Color(0x0c1016);
 
-  function crestAmount(r) {
-    let best = 0;
-    for (let i = 0; i < steps.length - 1; i += 1) {
-      const edge = steps[i][0];
-      if (edge <= 0) continue;
-      const d = edge - r;
-      if (d >= -0.5 && d < 3.4) {
-        const u = d < 0 ? 1 : 1 - d / 3.4;
-        best = Math.max(best, u);
-      }
-    }
-    return best;
-  }
-
-  function paintRock(r, a, y, face) {
-    const depth = THREE.MathUtils.clamp(-y / 28.5, 0, 1);
-    if (depth < 0.5) tmpC.copy(colRim).lerp(colMid, depth / 0.5);
-    else tmpC.copy(colMid).lerp(colLow, (depth - 0.5) / 0.5);
-    if (y < -24) tmpC.lerp(colDeep, THREE.MathUtils.clamp((-24 - y) / 4.5, 0, 1));
-    if (face > 0.05) tmpC.lerp(colFace, 0.7 * face);
-    const n1 = hash2(Math.floor(r / 3.2), Math.floor(a * 9));
-    const n2 = hash2(Math.floor(r / 8) + 4, Math.floor(a * 2.2) + 1);
-    if (n2 > 0.58) tmpC.lerp(colOchre, (n2 - 0.58) * 0.85);
-    else if (n2 < 0.32) tmpC.lerp(colGray, (0.32 - n2) * 0.9);
-    tmpC.offsetHSL((n2 - 0.5) * 0.02, (n1 - 0.5) * 0.05, (n1 - 0.5) * 0.1);
-    const crest = crestAmount(r);
-    if (crest > 0.02) tmpC.lerp(colCrest, 0.55 * crest);
+  function paintSoil(x, z, y, face) {
+    const depth = THREE.MathUtils.clamp(-y / 30, 0, 1);
+    tmpC.copy(colSoil).lerp(colDeep, depth * 0.35);
+    if (face > 0.05) tmpC.lerp(colFace, 0.32 * face);
+    const n = hash2(Math.floor(x * 0.8), Math.floor(z * 0.8));
+    tmpC.offsetHSL(0, (n - 0.5) * 0.03, (n - 0.5) * 0.035);
   }
 
   for (let ir = 0; ir <= radial; ir += 1) {
@@ -115,37 +91,29 @@ export function createQuarryTerrain({
       const haul = queryHaul(x, z);
       const edge = HAUL.cover + HAUL.shoulder;
       const onRoad = haul.dist <= HAUL.cover;
-      const coal = coalAt(r, a);
-      const worked = coal.amount > 0.35;
-      const jag = (onRoad || worked) ? 0 : (hash2(Math.floor(a * 22), 11) - 0.5) * 1.5;
-      const rr = Math.max(0, Math.min(rimR, r + jag));
-      const face = faceAmount(rr);
-      let bench = heightAt(rr);
-      if (!onRoad && !worked && haul.dist >= edge) {
-        const hum = hash2(Math.floor(a * 30), Math.floor(r * 3) + 2) - 0.5;
-        bench += hum * (face > 0.2 ? 0.22 : 0.72);
-      }
+      const bench = heightAt(r);
+      const face = faceAmount(r);
       let y = bench;
       if (onRoad) {
         y = haul.y - 0.08;
         tmpC.copy(gravelC);
-        const grit = hash2(Math.floor(x * 1.4 + 40), Math.floor(z * 1.4 + 7));
-        tmpC.offsetHSL(0, 0, (grit - 0.5) * 0.05);
       } else if (haul.dist < edge) {
         const k = (haul.dist - HAUL.cover) / HAUL.shoulder;
         const s = k * k * (3 - 2 * k);
         y = THREE.MathUtils.lerp(haul.y - 0.04, bench, s);
-        paintRock(r, a, bench, face);
-        tmpC.lerp(spoilC, (1 - s) * 0.8);
+        paintSoil(x, z, bench, face);
+        tmpC.lerp(spoilC, (1 - s) * 0.65);
       } else {
-        paintRock(r, a, y, face);
+        paintSoil(x, z, y, face);
       }
       if (!onRoad) {
+        const coal = coalAt(r, a);
         if (coal.amount > 0.04) tmpC.lerp(coalC, coal.amount);
         if (coal.recess > 0.05 && haul.dist > edge) y -= coal.recess * 0.9;
       }
       positions.push(x, y, z);
       colors.push(tmpC.r, tmpC.g, tmpC.b);
+      uvs.push(x * 0.16, z * 0.16);
     }
   }
 
@@ -163,15 +131,19 @@ export function createQuarryTerrain({
   const buffer = new THREE.BufferGeometry();
   buffer.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   buffer.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  buffer.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   buffer.setIndex(indices);
   buffer.computeVertexNormals();
 
+  const earth = surfaceTexture('earth');
   const mesh = new THREE.Mesh(
     buffer,
     new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      map: earth,
       vertexColors: true,
       roughness: 0.96,
-      metalness: 0.04,
+      metalness: 0.02,
       flatShading: false,
       // Visible from pit floor (дно) looking up the benches
       side: THREE.DoubleSide,

@@ -121,13 +121,18 @@ export function surfaceTexture(kind) {
         r = stone + fine * 10;
         g = stone + fine * 6 - 4;
         b = stone - 10;
+      } else if (kind === 'earth') {
+        const grain = 198 + fine * 42 + hash(x >> 1, y >> 1, 5) * 16;
+        const pebble = chip < 0.06 ? -28 : 0;
+        r = grain + 6 + pebble;
+        g = grain - 2 + pebble;
+        b = grain - 8 + pebble;
       } else {
-        const blot = hash(x >> 5, y >> 5, 6);
-        const soil = 78 + coarse * 120 + fine * 18;
-        const ash = blot < 0.22 ? 48 : blot > 0.78 ? -28 : 0;
-        r = soil + 28 - ash;
-        g = soil - 4 - ash * 0.45;
-        b = soil - 42 - ash * 0.15;
+        const soil = 132 + fine * 36 + hash(x >> 1, y >> 1, 7) * 22;
+        const speck = chip < 0.08 ? 22 : 0;
+        r = soil + 16 - speck;
+        g = soil - speck * 0.3;
+        b = soil - 28;
       }
       data[i] = clampByte(r);
       data[i + 1] = clampByte(g);
