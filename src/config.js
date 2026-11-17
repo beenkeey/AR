@@ -20,8 +20,10 @@ export const WORLD_TRACKING_ENABLED = params.get('wt') !== '0' && params.get('wo
 export const EXHIBITION_MODEL_SCALE = 55;
 
 const targetParam = params.get('target');
-const usePrecompiledTarget = targetParam === 'precompiled';
-const useTestTarget = targetParam === 'test';
+// Default: precompiled MindAR card — reliable on phones, no runtime compile.
+// ?target=runtime → old procedural rig-target.png (compile in browser)
+const useRuntimeTarget = targetParam === 'runtime' || targetParam === 'rig';
+const usePrecompiledTarget = !useRuntimeTarget;
 
 export const CONFIG = {
   model: {
@@ -32,7 +34,7 @@ export const CONFIG = {
   },
   target: {
     mode: usePrecompiledTarget ? 'PRECOMPILED' : 'RUNTIME',
-    imageUrl: (usePrecompiledTarget || useTestTarget)
+    imageUrl: usePrecompiledTarget
       ? assetUrl('assets/targets/mindar-card-test.png')
       : assetUrl('assets/targets/rig-target.png'),
     mindUrl: usePrecompiledTarget ? assetUrl('assets/targets/mindar-card-test.mind') : null,
@@ -181,7 +183,8 @@ export const CONFIG = {
 };
 
 export const MESSAGES = {
-  scan: 'Наведите камеру на маркер месторождения',
+  scan: 'Наведите камеру на печатный маркер',
+  scanHint: 'Не на QR — на цветную карточку MindAR Soft',
   tapToStart: 'Нажмите, чтобы начать',
   loading: 'Загрузка…',
   compiling: 'Подготовка распознавания…',

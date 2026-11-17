@@ -78,6 +78,35 @@ body {
   display: none !important;
 }
 
+.overlay-scan {
+  align-items: flex-end;
+  padding-bottom: calc(36px + env(safe-area-inset-bottom));
+}
+
+.scan-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: min(88vw, 340px);
+  padding: 16px 18px 18px;
+  border-radius: 18px;
+  background: rgba(8, 10, 12, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.scan-marker {
+  width: min(42vw, 168px);
+  height: auto;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  background: #111;
+}
+
 .overlay-title {
   margin: 0;
   text-align: center;
@@ -85,6 +114,15 @@ body {
   font-weight: 600;
   line-height: 1.35;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+}
+
+.scan-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.78);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
 }
 
 .overlay-ar {

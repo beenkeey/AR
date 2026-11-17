@@ -5,21 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Печать AR-маркера</title>
     <style>
-      html, body { margin: 0; background: #fff; font-family: sans-serif; }
+      html, body { margin: 0; background: #fff; font-family: sans-serif; color: #111; }
       main { max-width: 900px; margin: 24px auto; padding: 0 16px; }
       img { width: 100%; height: auto; border: 1px solid #ccc; }
-      p { line-height: 1.4; }
-      @media print { h1, p { display: none; } img { border: 0; } }
+      p, li { line-height: 1.45; }
+      .warn {
+        background: #fff6d8;
+        border: 1px solid #e6c65c;
+        border-radius: 10px;
+        padding: 12px 14px;
+      }
+      @media print {
+        h1, p, li, .warn, .noprint { display: none !important; }
+        img { border: 0; max-width: 16cm; }
+      }
     </style>
   </head>
   <body>
     <main>
-      <h1>Печатный image-target</h1>
-      <p>
-        Распечатайте это изображение (желательно не меньше 15–20 см). После распознавания
-        откроется сцена автоматизированного угольного карьера.
+      <h1>Печатный маркер для камеры</h1>
+      <div class="warn noprint">
+        <strong>Важно:</strong> QR-код только открывает сайт.
+        Распознаёт камера <em>этот</em> цветной маркер MindAR Soft — распечатайте его
+        примерно на 15–20&nbsp;см и наведите камеру уже на бумагу.
+      </div>
+      <p class="noprint">
+        Откройте AR: <a href="./">главная страница</a> · QR лежит в
+        <code>assets/targets/coal-quarry-qr.png</code>
       </p>
-      <img src="./assets/targets/rig-target.png" alt="AR target" />
+      <ol class="noprint">
+        <li>Распечатайте картинку ниже (цветная печать, без сильного блика).</li>
+        <li>На телефоне откройте сайт, нажмите по экрану, разрешите камеру.</li>
+        <li>Наведите камеру на распечатку — не на QR.</li>
+      </ol>
+      <img src="./assets/targets/mindar-card-test.png" alt="MindAR Soft marker" />
     </main>
   </body>
 </html>
