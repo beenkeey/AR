@@ -116,7 +116,13 @@ export function surfaceTexture(kind) {
       let r;
       let g;
       let b;
-      if (gravel) {
+      if (kind === 'asphalt') {
+        const grain = 62 + fine * 16 + hash(x >> 1, y >> 1, 4) * 8;
+        const speckle = chip > 0.94 ? 14 : 0;
+        r = grain + speckle;
+        g = grain + 2 + speckle;
+        b = grain + 6 + speckle;
+      } else if (gravel) {
         const stone = chip > 0.72 ? 186 : chip < 0.14 ? 128 : 156 + coarse * 22;
         r = stone + fine * 10;
         g = stone + fine * 6 - 4;

@@ -44,8 +44,8 @@ export class CoalMineWorld {
 
     this.terrain = createQuarryTerrain({
       rimR: 78,
-      segs: WEAK ? 56 : 84,
-      rings: WEAK ? 48 : 68,
+      segs: WEAK ? 56 : 128,
+      rings: WEAK ? 48 : 80,
     });
     this.terrain.position.copy(this._quarryOrigin);
     this.scene.add(this.terrain);

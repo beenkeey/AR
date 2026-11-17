@@ -70,8 +70,6 @@ export function createQuarryTerrain({
   const colSoil = new THREE.Color(0xa88462);
   const colDeep = new THREE.Color(0x7d6248);
   const colFace = new THREE.Color(0x6d6258);
-  const gravelC = new THREE.Color(0xc4beb4);
-  const spoilC = new THREE.Color(0x6b5344);
   const coalC = new THREE.Color(0x0c1016);
 
   function paintSoil(x, z, y, face) {
@@ -95,14 +93,15 @@ export function createQuarryTerrain({
       const face = faceAmount(r);
       let y = bench;
       if (onRoad) {
-        y = haul.y - 0.08;
-        tmpC.copy(gravelC);
+        y = haul.y - 0.14;
+        paintSoil(x, z, bench, face);
+        tmpC.multiplyScalar(0.78);
       } else if (haul.dist < edge) {
         const k = (haul.dist - HAUL.cover) / HAUL.shoulder;
         const s = k * k * (3 - 2 * k);
-        y = THREE.MathUtils.lerp(haul.y - 0.04, bench, s);
+        y = THREE.MathUtils.lerp(haul.y - 0.08, bench, s);
         paintSoil(x, z, bench, face);
-        tmpC.lerp(spoilC, (1 - s) * 0.65);
+        tmpC.multiplyScalar(THREE.MathUtils.lerp(0.86, 1, s));
       } else {
         paintSoil(x, z, y, face);
       }

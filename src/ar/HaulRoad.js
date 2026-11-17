@@ -203,7 +203,7 @@ function inwardNormal(t, out) {
 
 /** Spoil windrow on the pit side of the merged climb/descent. */
 function bermGeometry() {
-  const steps = HAUL.turns * 80;
+  const steps = HAUL.turns * 200;
   const inner = HAUL.lane + HAUL.ribbon + 0.2;
   const mid = inner + 1.15;
   const outer = inner + 2.35;
@@ -241,56 +241,77 @@ function bermGeometry() {
   return geo;
 }
 
-function turnaroundRibbons() {
-  const upEnd = spiralCenter(1, HAUL.lane, new THREE.Vector3());
-  const downEnd = spiralCenter(1, -HAUL.lane, new THREE.Vector3());
-  const upStart = spiralCenter(0, HAUL.lane, new THREE.Vector3());
-  const downStart = spiralCenter(0, -HAUL.lane, new THREE.Vector3());
-  const rim = [upEnd];
-  addBulb(upEnd, downEnd, true, 18, rim);
-  rim.push(downEnd);
-  const floor = [downStart];
-  addBulb(downStart, upStart, false, 18, floor);
-  floor.push(upStart);
-  return [rim, floor];
+/** Flat semicircle so the turnaround does not pinch into a triangle fan. */
+function turnaroundPad(from, to, outward) {
+  const mx = (from.x + to.x) * 0.5;
+  const mz = (from.z + to.z) * 0.5;
+  const y = (from.y + to.y) * 0.5 + 0.045;
+  const hx = (to.x - from.x) * 0.5;
+  const hz = (to.z - from.z) * 0.5;
+  const halfChord = Math.hypot(hx, hz) || 1;
+  let px = -hz / halfChord;
+  let pz = hx / halfChord;
+  if ((outward && mx * px + mz * pz < 0) || (!outward && mx * px + mz * pz > 0)) {
+    px = -px;
+    pz = -pz;
+  }
+  const bow = halfChord + 2.9;
+  const steps = 28;
+  const positions = [mx, y, mz];
+  for (let i = 0; i <= steps; i += 1) {
+    const u = i / steps;
+    const c = Math.cos(Math.PI * u);
+    const s = Math.sin(Math.PI * u);
+    positions.push(
+      mx - hx * c + px * bow * s,
+      y,
+      mz - hz * c + pz * bow * s,
+    );
+  }
+  const indices = [];
+  for (let i = 1; i <= steps; i += 1) indices.push(0, i, i + 1);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 /**
- * One gravel haul ramp (both lanes on a single shelf) plus a spoil berm
- * on the pit side. Driving line is unchanged.
+ * Asphalt shelf for both lanes, round pads at the turnarounds (a ribbon
+ * around the bulb pinches and draws a white fan), spoil berm on the pit side.
+ * Driving line is unchanged.
  */
 export function createHaulRoadMesh() {
   const group = new THREE.Group();
   group.name = 'HaulRoad';
-  const steps = HAUL.turns * 96;
+  const steps = HAUL.turns * 280;
   const center = [];
   for (let i = 0; i <= steps; i += 1) {
     center.push(spiralCenter(i / steps, 0, new THREE.Vector3()));
   }
-  const gravelMap = surfaceTexture('gravel');
-  const gravelMat = new THREE.MeshStandardMaterial({
-    color: gravelMap ? 0xffffff : 0xc4beb4,
-    map: gravelMap,
-    roughness: 0.96,
-    metalness: 0.02,
+  const asphaltMap = surfaceTexture('asphalt');
+  const asphaltMat = new THREE.MeshStandardMaterial({
+    color: asphaltMap ? 0xffffff : 0x3c434c,
+    map: asphaltMap,
+    roughness: 0.94,
+    metalness: 0.04,
     side: THREE.DoubleSide,
   });
   const road = new THREE.Mesh(
-    ribbonGeometry(center, HAUL.lane + HAUL.ribbon, 0.05, false),
-    gravelMat,
+    ribbonGeometry(center, HAUL.lane + HAUL.ribbon, 0.06, false),
+    asphaltMat,
   );
   road.receiveShadow = true;
-  road.name = 'HaulGravel';
+  road.name = 'HaulAsphalt';
   group.add(road);
 
-  const padMat = new THREE.MeshStandardMaterial({
-    color: 0xc4beb4,
-    roughness: 0.96,
-    metalness: 0.02,
-    side: THREE.DoubleSide,
-  });
-  for (const bulb of turnaroundRibbons()) {
-    const pad = new THREE.Mesh(ribbonGeometry(bulb, HAUL.ribbon, 0.03, false), padMat);
+  const upEnd = spiralCenter(1, HAUL.lane, new THREE.Vector3());
+  const downEnd = spiralCenter(1, -HAUL.lane, new THREE.Vector3());
+  const upStart = spiralCenter(0, HAUL.lane, new THREE.Vector3());
+  const downStart = spiralCenter(0, -HAUL.lane, new THREE.Vector3());
+  for (const [a, b, outward] of [[upEnd, downEnd, true], [downStart, upStart, false]]) {
+    const pad = new THREE.Mesh(turnaroundPad(a, b, outward), asphaltMat);
     pad.receiveShadow = true;
     pad.name = 'HaulPad';
     group.add(pad);
