@@ -61,11 +61,11 @@ function createStockyard(x, z) {
   const g = new THREE.Group();
   g.name = 'CoalStockyard';
   g.position.set(x, 0, z);
-  const shell = steel(0x6a7278, 0.4, 0.42, 'metal');
-  const ring = steel(0x8e979e, 0.45, 0.38, 'metal');
-  const berm = steel(0x5a4a38, 0.08, 0.92, 'rock');
-  const coal = steel(0x1c1a18, 0.04, 0.94, 'rock');
-  const yellow = steel(0xe8b40a, 0.1, 0.5, 'paint');
+  const shell = new THREE.MeshStandardMaterial({ color: 0xb0bcc6, metalness: 0.45, roughness: 0.4 });
+  const ring = new THREE.MeshStandardMaterial({ color: 0xff6a1a, metalness: 0.2, roughness: 0.45 });
+  const berm = new THREE.MeshStandardMaterial({ color: 0xc48a4a, metalness: 0.05, roughness: 0.9 });
+  const coal = new THREE.MeshStandardMaterial({ color: 0x2e2a28, metalness: 0.04, roughness: 0.92 });
+  const yellow = new THREE.MeshStandardMaterial({ color: 0xffc400, metalness: 0.1, roughness: 0.45 });
   box(g, berm, 8, 0.18, 5, 28, 0.36, 18);
   const spots = [
     [0, 0],

@@ -4,10 +4,9 @@ import { createBelAZ } from '../assets/BelAZ.js';
 import { createMiningDrone } from '../assets/MiningDrone.js';
 import { createExcavator, tickExcavator } from '../assets/Excavator.js';
 import { createCoalYard } from '../assets/FieldYard.js';
-import { textured } from '../assets/surfaceMaps.js';
 
 const WEAK = CONFIG.performance.weak;
-const FOG = 0x8a7a68;
+const FOG = 0xb8d4f0;
 const _fwd = new THREE.Vector3();
 const _look = new THREE.Vector3();
 const _targetQ = new THREE.Quaternion();
@@ -30,7 +29,7 @@ export class CoalMineWorld {
 
   _build() {
     this.scene.background = new THREE.Color(FOG);
-    this.scene.fog = new THREE.Fog(FOG, 90, 360);
+    this.scene.fog = new THREE.Fog(FOG, 120, 420);
 
     this.scene.add(this._sky());
     this.scene.add(this._rimPlateau());
@@ -64,15 +63,15 @@ export class CoalMineWorld {
         void main() {
           vec3 n = normalize(vDir);
           float h = n.y;
-          vec3 zenith = vec3(0.40, 0.50, 0.60);
-          vec3 mid = vec3(0.60, 0.56, 0.46);
-          vec3 horizon = vec3(0.74, 0.66, 0.52);
-          vec3 haze = vec3(0.80, 0.72, 0.58);
+          vec3 zenith = vec3(0.35, 0.62, 0.92);
+          vec3 mid = vec3(0.55, 0.78, 0.95);
+          vec3 horizon = vec3(0.98, 0.82, 0.55);
+          vec3 haze = vec3(1.0, 0.90, 0.72);
           vec3 col = mix(horizon, mid, smoothstep(-0.05, 0.28, h));
           col = mix(col, zenith, smoothstep(0.18, 0.92, h));
-          col = mix(col, haze, (1.0 - smoothstep(0.0, 0.22, abs(h))) * 0.55);
-          float dust = 0.035 * sin(uTime * 0.15 + n.x * 3.0);
-          col += vec3(dust, dust * 0.7, dust * 0.4);
+          col = mix(col, haze, (1.0 - smoothstep(0.0, 0.22, abs(h))) * 0.4);
+          float dust = 0.02 * sin(uTime * 0.15 + n.x * 3.0);
+          col += vec3(dust, dust * 0.6, dust * 0.25);
           gl_FragColor = vec4(col, 1.0);
         }
       `,
@@ -87,11 +86,11 @@ export class CoalMineWorld {
   _rimPlateau() {
     const group = new THREE.Group();
     group.name = 'QuarryRim';
-    const soil = textured(new THREE.MeshStandardMaterial({
-      color: 0x6a5844,
-      roughness: 0.96,
+    const soil = new THREE.MeshStandardMaterial({
+      color: 0xc48a4a,
+      roughness: 0.92,
       metalness: 0.03,
-    }), 'rock');
+    });
     // Outer plateau around the pit
     const ground = new THREE.Mesh(new THREE.RingGeometry(78, 280, WEAK ? 40 : 64), soil);
     ground.rotation.x = -Math.PI / 2;
@@ -113,37 +112,19 @@ export class CoalMineWorld {
     const cz = -CONFIG.exhibition.distance * 0.55;
     group.position.set(cx, 0, cz);
 
-    const rock = textured(new THREE.MeshStandardMaterial({
-      color: 0x6a5e50,
-      roughness: 0.92,
-      metalness: 0.05,
-    }), 'rock');
-    const dirt = textured(new THREE.MeshStandardMaterial({
-      color: 0x5a4a38,
-      roughness: 0.94,
-      metalness: 0.04,
-    }), 'rock');
-    const coal = textured(new THREE.MeshStandardMaterial({
-      color: 0x1a1816,
-      roughness: 0.95,
-      metalness: 0.04,
-    }), 'rock');
-    const road = textured(new THREE.MeshStandardMaterial({
-      color: 0x3a342c,
-      roughness: 0.88,
-      metalness: 0.06,
-    }), 'rock');
-    const yellow = textured(new THREE.MeshStandardMaterial({
-      color: 0xe8b40a,
-      roughness: 0.5,
-      metalness: 0.1,
-    }), 'paint');
+    const rock = new THREE.MeshStandardMaterial({ color: 0xd4a574, roughness: 0.9, metalness: 0.04 });
+    const dirt = new THREE.MeshStandardMaterial({ color: 0xe08940, roughness: 0.88, metalness: 0.04 });
+    const clay = new THREE.MeshStandardMaterial({ color: 0xc45a3a, roughness: 0.9, metalness: 0.04 });
+    const coal = new THREE.MeshStandardMaterial({ color: 0x2e2a28, roughness: 0.92, metalness: 0.06 });
+    const road = new THREE.MeshStandardMaterial({ color: 0x4a5560, roughness: 0.82, metalness: 0.08 });
+    const yellow = new THREE.MeshStandardMaterial({ color: 0xffc400, roughness: 0.45, metalness: 0.1 });
+    const green = new THREE.MeshStandardMaterial({ color: 0x3dcc6a, roughness: 0.5, metalness: 0.08 });
 
-    // Terraces: [radius, floorY, wallH, material]
+    // Terraces: layered ochre / rust / coal for readable depth
     const benches = [
       { r: 72, y: -0.2, h: 1.2, mat: rock },
       { r: 58, y: -5.5, h: 5.2, mat: dirt },
-      { r: 46, y: -11.0, h: 5.4, mat: dirt },
+      { r: 46, y: -11.0, h: 5.4, mat: clay },
       { r: 34, y: -16.5, h: 5.4, mat: dirt },
       { r: 22, y: -21.5, h: 5.0, mat: coal },
       { r: 12, y: -25.5, h: 4.0, mat: coal },
@@ -189,7 +170,7 @@ export class CoalMineWorld {
     // Rim safety berm + markers
     const berm = new THREE.Mesh(
       new THREE.TorusGeometry(73, 1.1, 8, WEAK ? 40 : 64),
-      rock,
+      green,
     );
     berm.rotation.x = Math.PI / 2;
     berm.position.y = 0.6;
@@ -197,9 +178,12 @@ export class CoalMineWorld {
 
     for (let i = 0; i < 16; i += 1) {
       const a = (i / 16) * Math.PI * 2;
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.6, 0.25), yellow);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 1.6, 8), yellow);
       post.position.set(Math.cos(a) * 74, 1.2, Math.sin(a) * 74);
       group.add(post);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), green);
+      cap.position.set(Math.cos(a) * 74, 2.1, Math.sin(a) * 74);
+      group.add(cap);
     }
 
     // Coal piles on mid benches
@@ -344,12 +328,10 @@ export class CoalMineWorld {
 
   _addBenchExcavators() {
     const o = this._quarryOrigin || new THREE.Vector3(0, 0, -CONFIG.exhibition.distance * 0.55);
+    // Only two excavators in the whole pit
     const poses = [
-      { x: 38, y: -11.0, z: 8, yaw: 1.4, s: 1.7 },
-      { x: -32, y: -11.0, z: -14, yaw: -0.8, s: 1.55 },
-      { x: 18, y: -16.5, z: -22, yaw: 2.3, s: 1.45 },
-      { x: -10, y: -21.5, z: 12, yaw: 0.5, s: 1.35 },
-      { x: 8, y: -25.5, z: -4, yaw: -1.6, s: 1.25 },
+      { x: 38, y: -11.0, z: 8, yaw: 1.4, s: 1.55 },
+      { x: -18, y: -16.5, z: -20, yaw: 2.1, s: 1.35 },
     ];
     for (const p of poses) {
       const ex = createExcavator();
@@ -396,7 +378,8 @@ export class CoalMineWorld {
       if (_fwd.lengthSq() > 1e-8) {
         _look.copy(truck.group.position).add(_fwd);
         truck.group.lookAt(_look);
-        truck.group.rotateY(Math.PI / 2);
+        // BelAZ nose is +X; lookAt aims +Z → yaw −90° so the cab leads.
+        truck.group.rotateY(-Math.PI / 2);
         _targetQ.copy(truck.group.quaternion);
         if (!truck._aimed) {
           truck._q.copy(_targetQ);

@@ -20,10 +20,8 @@ export const WORLD_TRACKING_ENABLED = params.get('wt') !== '0' && params.get('wo
 export const EXHIBITION_MODEL_SCALE = 55;
 
 const targetParam = params.get('target');
-// Default: precompiled MindAR card — reliable on phones, no runtime compile.
-// ?target=runtime → old procedural rig-target.png (compile in browser)
-const useRuntimeTarget = targetParam === 'runtime' || targetParam === 'rig';
-const usePrecompiledTarget = !useRuntimeTarget;
+// Custom coal-quarry marker (runtime compile). ?target=test → old MindAR Soft card.
+const useTestCard = targetParam === 'test' || targetParam === 'precompiled';
 
 export const CONFIG = {
   model: {
@@ -33,11 +31,11 @@ export const CONFIG = {
     offset: [0, 0, 0],
   },
   target: {
-    mode: usePrecompiledTarget ? 'PRECOMPILED' : 'RUNTIME',
-    imageUrl: usePrecompiledTarget
+    mode: useTestCard ? 'PRECOMPILED' : 'RUNTIME',
+    imageUrl: useTestCard
       ? assetUrl('assets/targets/mindar-card-test.png')
-      : assetUrl('assets/targets/rig-target.png'),
-    mindUrl: usePrecompiledTarget ? assetUrl('assets/targets/mindar-card-test.mind') : null,
+      : assetUrl('assets/targets/coal-quarry-marker.png'),
+    mindUrl: useTestCard ? assetUrl('assets/targets/mindar-card-test.mind') : null,
     physicalWidthMeters: 0.2,
   },
   camera: {
@@ -99,38 +97,39 @@ export const CONFIG = {
     walkDamp: 3.4,
     startYaw: -Math.PI / 2,
     // Waypoints are local to quarry center (inside the pit bowl).
+    // Compact drones (not helicopter-sized), higher over the pit
     drones: [
       {
-        scale: 3.4,
+        scale: 1.15,
         duration: 42,
         waypoints: [
-          [40, 8, 10],
-          [20, 14, -35],
-          [-25, 12, -30],
-          [-38, 10, 15],
-          [-10, 16, 40],
-          [30, 11, 32],
+          [36, 38, 8],
+          [16, 44, -30],
+          [-22, 42, -26],
+          [-34, 40, 12],
+          [-8, 46, 34],
+          [26, 41, 28],
         ],
       },
       {
-        scale: 2.8,
-        duration: 58,
+        scale: 0.95,
+        duration: 55,
         waypoints: [
-          [28, -2, 20],
-          [10, 4, -28],
-          [-22, 2, -18],
-          [-18, 6, 24],
-          [8, 3, 30],
+          [22, 34, 16],
+          [6, 40, -24],
+          [-18, 36, -14],
+          [-14, 42, 20],
+          [8, 38, 26],
         ],
       },
       {
-        scale: 2.4,
-        duration: 50,
+        scale: 0.85,
+        duration: 48,
         waypoints: [
-          [15, -8, 8],
-          [-8, -4, -20],
-          [-20, -6, 5],
-          [5, -2, 22],
+          [12, 48, 4],
+          [-6, 52, -16],
+          [-16, 50, 6],
+          [4, 49, 18],
         ],
       },
     ],
@@ -184,7 +183,7 @@ export const CONFIG = {
 
 export const MESSAGES = {
   scan: 'Наведите камеру на печатный маркер',
-  scanHint: 'Не на QR — на цветную карточку MindAR Soft',
+  scanHint: 'Не на QR — на печатный маркер карьера',
   tapToStart: 'Нажмите, чтобы начать',
   loading: 'Загрузка…',
   compiling: 'Подготовка распознавания…',

@@ -21,9 +21,9 @@ Vite поднимет HTTPS на порту `5173`.
 Продакшен-сборка: `https://beenkeey.github.io/AR/`
 
 - **QR** (только открывает сайт): `public/assets/targets/coal-quarry-qr.png`
-- **Маркер для камеры** (его нужно печатать): `public/print-target.html` → карточка MindAR Soft
+- **Маркер для камеры** (печатать): `public/print-target.html` → `coal-quarry-marker.png`
 
-Камера распознаёт печатный маркер, а не QR.
+Камера распознаёт печатный маркер карьера, а не QR.
 
 ## Точки обзора
 

@@ -1,96 +1,156 @@
 import * as THREE from 'three';
-import { textured } from './surfaceMaps.js';
 
 /**
- * Large autonomous BelAZ dump truck. Cab is sealed / unmanned look.
- * Length along +X, nose toward +X.
+ * Autonomous BelAZ dump truck — vivid yellow, rounded volumes.
+ * Nose toward local +X.
  */
 export function createBelAZ() {
-  const group = new THREE.Group();
-  group.name = 'BelAZ';
+  const root = new THREE.Group();
+  root.name = 'BelAZ';
 
-  const yellow = std(0xe8b40a, 0.1, 0.48);
-  const yellowDark = std(0xc49208, 0.1, 0.52);
-  const black = std(0x1a1c1e, 0.22, 0.5);
-  const chassis = std(0x2a2e32, 0.32, 0.46);
-  const glass = std(0x152028, 0.6, 0.12, { transparent: true, opacity: 0.42 });
-  const rubber = std(0x101010, 0.04, 0.86);
-  const rim = std(0x3a4046, 0.42, 0.36);
-  const coal = std(0x1c1a18, 0.04, 0.92);
-  const light = std(0xfff0c0, 0.08, 0.28, { emissive: 0xffd878, emissiveIntensity: 0.55 });
-  const sensor = std(0x58c8ff, 0.2, 0.25, { emissive: 0x2aa8ff, emissiveIntensity: 0.85 });
+  const yellow = mat(0xffc400, 0.12, 0.42);
+  const yellowDeep = mat(0xe89a00, 0.14, 0.48);
+  const orange = mat(0xff6a1a, 0.1, 0.45);
+  const chassis = mat(0x3a424a, 0.4, 0.4);
+  const black = mat(0x1e2226, 0.25, 0.55);
+  const rubber = mat(0x141618, 0.05, 0.88);
+  const rim = mat(0x8a929a, 0.55, 0.32);
+  const glass = mat(0x6ec8ff, 0.2, 0.12, { transparent: true, opacity: 0.45, emissive: 0x1a4060, emissiveIntensity: 0.15 });
+  const coal = mat(0x2a2622, 0.04, 0.9);
+  const lamp = mat(0xfff2c8, 0.05, 0.25, { emissive: 0xffe08a, emissiveIntensity: 0.85 });
+  const sensor = mat(0x3ad0ff, 0.15, 0.25, { emissive: 0x1ab8ff, emissiveIntensity: 1.0 });
+  const stripe = mat(0xff3b2e, 0.08, 0.45);
 
-  box(group, chassis, 0.2, 1.05, 0, 11.2, 0.35, 4.4);
-  box(group, black, 0.1, 0.72, 0, 10.6, 0.22, 3.2);
+  // Chassis rail
+  const rail = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 9.2, 4, 10), chassis);
+  rail.rotation.z = Math.PI / 2;
+  rail.position.set(0.1, 0.95, 0);
+  root.add(rail);
 
-  // Cab (no human silhouette — dark glass + sensor bar)
-  box(group, yellow, 4.55, 2.55, 0, 2.8, 2.6, 4.0);
-  box(group, yellowDark, 4.55, 3.9, 0, 2.85, 0.18, 4.1);
-  box(group, glass, 5.95, 2.85, 0, 0.08, 1.55, 3.4);
-  box(group, glass, 4.55, 2.9, 2.05, 2.1, 1.2, 0.06);
-  box(group, glass, 4.55, 2.9, -2.05, 2.1, 1.2, 0.06);
-  box(group, black, 5.98, 1.7, 0, 0.12, 0.55, 2.2);
-  box(group, light, 6.05, 1.55, 1.15, 0.1, 0.28, 0.55);
-  box(group, light, 6.05, 1.55, -1.15, 0.1, 0.28, 0.55);
-  box(group, sensor, 5.2, 4.05, 0, 1.4, 0.12, 0.35);
-  box(group, sensor, 5.85, 3.35, 0, 0.18, 0.18, 0.18);
+  // Cab body (rounded)
+  const cab = new THREE.Mesh(new THREE.CapsuleGeometry(1.35, 1.1, 5, 12), yellow);
+  cab.rotation.z = Math.PI / 2;
+  cab.position.set(4.35, 2.55, 0);
+  cab.scale.set(1, 1.05, 1.35);
+  root.add(cab);
+  const cabRoof = new THREE.Mesh(new THREE.SphereGeometry(1.45, 14, 10), yellowDeep);
+  cabRoof.position.set(4.35, 3.55, 0);
+  cabRoof.scale.set(1.05, 0.42, 1.35);
+  root.add(cabRoof);
+  const windshield = new THREE.Mesh(new THREE.SphereGeometry(1.15, 12, 10), glass);
+  windshield.position.set(5.55, 2.7, 0);
+  windshield.scale.set(0.55, 0.85, 1.15);
+  root.add(windshield);
+  addBox(root, black, 5.75, 1.75, 0, 0.2, 0.45, 2.0);
+  addBox(root, lamp, 5.85, 1.55, 0.85, 0.12, 0.28, 0.45);
+  addBox(root, lamp, 5.85, 1.55, -0.85, 0.12, 0.28, 0.45);
+  addBox(root, stripe, 4.35, 2.1, 1.85, 2.2, 0.35, 0.08);
+  addBox(root, stripe, 4.35, 2.1, -1.85, 2.2, 0.35, 0.08);
 
-  // Dump body
+  // Dump bed — tapered hull
   const bed = new THREE.Group();
   bed.name = 'DumpBed';
-  box(bed, yellow, -1.6, 2.35, 0, 7.4, 2.8, 4.35);
-  box(bed, yellowDark, -1.6, 3.85, 0, 7.5, 0.16, 4.45);
-  box(bed, yellow, -5.2, 2.5, 0, 0.22, 2.5, 4.2);
-  box(bed, coal, -1.55, 2.55, 0, 6.6, 2.1, 3.7);
-  group.add(bed);
-  group.userData.bed = bed;
+  const hull = new THREE.Mesh(new THREE.CylinderGeometry(2.05, 2.35, 6.8, 12, 1, true), yellow);
+  hull.rotation.z = Math.PI / 2;
+  hull.position.set(-1.35, 2.55, 0);
+  bed.add(hull);
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.25, 3.9), yellowDeep);
+  floor.position.set(-1.35, 1.55, 0);
+  bed.add(floor);
+  const tail = new THREE.Mesh(new THREE.SphereGeometry(2.0, 12, 10), yellow);
+  tail.position.set(-4.55, 2.55, 0);
+  tail.scale.set(0.55, 1.05, 1.15);
+  bed.add(tail);
+  const load = new THREE.Mesh(new THREE.SphereGeometry(1.8, 12, 8), coal);
+  load.position.set(-1.5, 2.85, 0);
+  load.scale.set(1.7, 0.75, 1.05);
+  bed.add(load);
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(2.15, 0.12, 8, 20), orange);
+  lip.rotation.y = Math.PI / 2;
+  lip.position.set(1.85, 2.55, 0);
+  lip.scale.set(1, 1.05, 0.55);
+  bed.add(lip);
+  root.add(bed);
+  root.userData.bed = bed;
 
-  // Wheels — 6 axles look for mining truck mass
-  const axles = [4.4, 2.6, 0.2, -1.8, -3.6, -5.0];
+  // Wheels
+  const axles = [4.2, 2.5, 0.4, -1.7, -3.5, -4.9];
   for (const x of axles) {
-    const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4.5, 8), rim);
+    const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4.4, 8), rim);
     axle.rotation.x = Math.PI / 2;
     axle.position.set(x, 0.95, 0);
-    group.add(axle);
-    group.add(wheel(x, 0.95, 2.05, rubber, rim));
-    group.add(wheel(x, 0.95, -2.05, rubber, rim));
+    root.add(axle);
+    root.add(makeWheel(x, 0.95, 2.05, rubber, rim));
+    root.add(makeWheel(x, 0.95, -2.05, rubber, rim));
   }
 
-  // Autopilot roof mast
-  box(group, black, 4.55, 4.45, 0, 0.12, 0.95, 0.12);
-  const dish = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), sensor);
-  dish.position.set(4.55, 5.05, 0);
-  dish.scale.set(1, 0.55, 1);
-  group.add(dish);
+  // Autopilot mast
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.1, 8), black);
+  mast.position.set(4.35, 4.55, 0);
+  root.add(mast);
+  const dish = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 8), sensor);
+  dish.position.set(4.35, 5.2, 0);
+  dish.scale.set(1, 0.5, 1);
+  root.add(dish);
 
-  group.userData.eyeLocal = new THREE.Vector3(4.2, 4.6, 0);
-  return group;
+  // BELAZ label
+  const label = makeLabel('БелАЗ', '#111111', '#ffc400');
+  const side = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.4, 0.45),
+    new THREE.MeshBasicMaterial({ map: label, transparent: true }),
+  );
+  side.position.set(-1.2, 3.55, 2.28);
+  root.add(side);
+  const sideR = side.clone();
+  sideR.position.z = -2.28;
+  sideR.rotation.y = Math.PI;
+  root.add(sideR);
+
+  root.userData.eyeLocal = new THREE.Vector3(4.1, 4.7, 0);
+  root.traverse((n) => {
+    if (n.isMesh) {
+      n.castShadow = true;
+      n.receiveShadow = true;
+    }
+  });
+  return root;
 }
 
-function wheel(x, y, z, rubber, rim) {
+function makeWheel(x, y, z, rubber, rim) {
   const g = new THREE.Group();
-  const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 0.72, 16), rubber);
-  tire.rotation.x = Math.PI / 2;
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.76, 12), rim);
-  hub.rotation.x = Math.PI / 2;
+  const tire = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.32, 10, 18), rubber);
+  tire.rotation.y = Math.PI / 2;
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.55, 12), rim);
+  hub.rotation.z = Math.PI / 2;
   g.add(tire, hub);
   g.position.set(x, y, z);
   return g;
 }
 
-function box(parent, material, x, y, z, sx, sy, sz) {
+function addBox(parent, material, x, y, z, sx, sy, sz) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material);
   m.position.set(x, y, z);
-  m.castShadow = true;
-  m.receiveShadow = true;
   parent.add(m);
   return m;
 }
 
-function std(color, metalness, roughness, extra = {}) {
-  const material = new THREE.MeshStandardMaterial({ color, metalness, roughness, ...extra });
-  if (!extra.transparent && !extra.emissive) {
-    textured(material, metalness > 0.22 ? 'metal' : 'paint');
-  }
-  return material;
+function makeLabel(text, fg, bg) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.fillStyle = fg;
+  ctx.font = '700 72px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 256, 68);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function mat(color, metalness, roughness, extra = {}) {
+  return new THREE.MeshStandardMaterial({ color, metalness, roughness, ...extra });
 }
