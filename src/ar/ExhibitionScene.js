@@ -317,77 +317,8 @@ export class ExhibitionScene {
   }
 
   _ensureIndustrialDetail() {
-    const rig = this.model?.getObjectByName('CoalMineComplex');
-    if (!rig || rig.getObjectByName('IndustrialLights')) return;
-
-    const group = new THREE.Group();
-    group.name = 'IndustrialLights';
-
-    const redMat = new THREE.MeshStandardMaterial({
-      color: 0xff2a18,
-      emissive: 0xff1e0a,
-      emissiveIntensity: 2.8,
-      roughness: 0.45,
-      metalness: 0.08,
-    });
-    const warmMat = new THREE.MeshStandardMaterial({
-      color: 0xffc56a,
-      emissive: 0xffa845,
-      emissiveIntensity: 1.8,
-      roughness: 0.5,
-      metalness: 0.04,
-    });
-    const bulb = new THREE.SphereGeometry(0.12, 10, 10);
-    const markers = [
-      { p: [-11, 15.0, 8], mat: redMat, s: 1.1 },
-      { p: [10, 10.4, -12], mat: redMat, s: 1.0 },
-      { p: [10, 6.5, -9.2], mat: warmMat, s: 0.95 },
-      { p: [-11, 9.2, 10.3], mat: warmMat, s: 0.9 },
-      { p: [4, 3.2, -10], mat: warmMat, s: 0.8 },
-      { p: [-5, 1.5, 2], mat: warmMat, s: 0.75 },
-    ];
-    for (const item of markers) {
-      const mesh = new THREE.Mesh(bulb, item.mat);
-      mesh.position.set(...item.p);
-      mesh.scale.setScalar(item.s);
-      group.add(mesh);
-    }
-
-    const crown = new THREE.PointLight(0xff3318, 1.8, 16, 2);
-    crown.position.set(-11, 14.6, 8);
-    group.add(crown);
-    const work = new THREE.PointLight(0xffcc88, 1.45, 18, 2);
-    work.position.set(10, 8.5, -10);
-    group.add(work);
-
-    rig.add(group);
-
-    rig.traverse((node) => {
-      if (!node.isMesh || !node.material) return;
-      const mats = Array.isArray(node.material) ? node.material : [node.material];
-      for (const mat of mats) {
-        if (mat.color?.getHex?.() === 0x243038) {
-          mat.emissive.setHex(0x2d5360);
-          mat.emissiveIntensity = 0.32;
-        }
-      }
-    });
-
-    if (!this.anchor.getObjectByName('ContactShadow')) {
-      const shadow = new THREE.Mesh(
-        new THREE.CircleGeometry(2.35, 28),
-        new THREE.MeshBasicMaterial({
-          color: 0x6d7d88,
-          transparent: true,
-          opacity: 0.22,
-          depthWrite: false,
-        }),
-      );
-      shadow.name = 'ContactShadow';
-      shadow.rotation.x = -Math.PI / 2;
-      shadow.position.set(0.05, 0.025, -0.18);
-      this.anchor.add(shadow);
-    }
+    // Coal scene: no extra lights / contact-shadow discs on the anchor.
+    // Those floated in the pit and looked like black blobs / a hanging base.
   }
 
   resolveCamera(worldPos) {

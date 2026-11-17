@@ -129,27 +129,38 @@ export function createQuarryTerrain({
     group.add(line);
   }
 
+  const ramps = [];
   for (let i = 0; i < roadDefs.length - 1; i += 1) {
     const a = i * 1.55 + 0.4;
     const r0 = roadDefs[i].r;
     const r1 = roadDefs[i + 1].r;
     const y0 = roadDefs[i].y;
     const y1 = roadDefs[i + 1].y;
-    const ramp = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.35, 15), roadMat);
-    ramp.position.set(
-      Math.cos(a) * ((r0 + r1) * 0.5),
-      (y0 + y1) * 0.5,
-      Math.sin(a) * ((r0 + r1) * 0.5),
-    );
+    const midR = (r0 + r1) * 0.5;
+    const ramp = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.45, 16), roadMat);
+    ramp.position.set(Math.cos(a) * midR, (y0 + y1) * 0.5, Math.sin(a) * midR);
     ramp.lookAt(Math.cos(a) * r1, y1, Math.sin(a) * r1);
     const pitch = Math.atan2(y0 - y1, Math.abs(r0 - r1));
     ramp.rotateX(-pitch * 0.55);
     ramp.castShadow = true;
     ramp.receiveShadow = true;
     group.add(ramp);
+    ramps.push({
+      angle: a,
+      r0,
+      r1,
+      y0,
+      y1,
+      midR,
+      // Waypoints along the ramp (top → bottom)
+      top: [Math.cos(a) * r0, y0, Math.sin(a) * r0],
+      mid: [Math.cos(a) * midR, (y0 + y1) * 0.5, Math.sin(a) * midR],
+      bot: [Math.cos(a) * r1, y1, Math.sin(a) * r1],
+    });
   }
 
   group.userData.roadDefs = roadDefs;
+  group.userData.ramps = ramps;
   group.userData.heightAt = heightAt;
   return group;
 }
