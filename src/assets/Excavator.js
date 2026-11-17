@@ -1,95 +1,75 @@
 import * as THREE from 'three';
 
 /**
- * Open-pit excavator — yellow/orange, rounded cabin, animated boom.
+ * Hard-surface mining excavator. Track bottoms sit on y=0.
  */
 export function createExcavator() {
   const root = new THREE.Group();
   root.name = 'Excavator';
 
-  const yellow = mat(0xffc400, 0.12, 0.45);
-  const orange = mat(0xff6a1a, 0.1, 0.48);
-  const black = mat(0x1e2226, 0.28, 0.5);
-  const metal = mat(0x9aa3aa, 0.55, 0.35);
-  const glass = mat(0x6ec8ff, 0.15, 0.14, { transparent: true, opacity: 0.42 });
-  const track = mat(0x2a2e32, 0.2, 0.7);
-  const sensor = mat(0x3ad0ff, 0.15, 0.25, { emissive: 0x1ab8ff, emissiveIntensity: 0.9 });
+  const yellow = mat(0xf5c400, 0.18, 0.48);
+  const yellowDark = mat(0xd4a200, 0.2, 0.5);
+  const orange = mat(0xe86a12, 0.15, 0.5);
+  const black = mat(0x1a1c1e, 0.25, 0.5);
+  const steel = mat(0x8a929a, 0.55, 0.35);
+  const glass = mat(0x1a2832, 0.3, 0.15, { transparent: true, opacity: 0.5 });
+  const track = mat(0x2a2e32, 0.2, 0.72);
 
-  // Tracks
-  for (const z of [1.7, -1.7]) {
-    const shoe = new THREE.Mesh(new THREE.CapsuleGeometry(0.55, 5.2, 4, 10), track);
-    shoe.rotation.z = Math.PI / 2;
-    shoe.position.set(0, 0.55, z);
-    root.add(shoe);
+  // —— Tracks (bottom at y=0) ——
+  for (const z of [1.65, -1.65]) {
+    box(root, track, 0, 0.55, z, 6.4, 1.1, 1.15);
+    for (const x of [-2.2, -0.75, 0.75, 2.2]) {
+      const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.05, 10), black);
+      roller.rotation.x = Math.PI / 2;
+      roller.position.set(x, 0.42, z);
+      root.add(roller);
+    }
   }
-  const belly = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.4, 2.8), black);
-  belly.position.set(0, 0.95, 0);
-  root.add(belly);
+  box(root, black, 0, 1.05, 0, 5.2, 0.35, 2.6);
 
+  // —— House ——
   const house = new THREE.Group();
   house.name = 'ExcavatorHouse';
-  house.position.set(0.3, 1.35, 0);
+  house.position.set(0.25, 1.25, 0);
   root.add(house);
 
-  const cabin = new THREE.Mesh(new THREE.CapsuleGeometry(1.35, 1.6, 5, 12), yellow);
-  cabin.rotation.z = Math.PI / 2;
-  cabin.position.set(-0.4, 1.35, 0);
-  cabin.scale.set(1, 1.05, 1.15);
-  house.add(cabin);
-  const roof = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 8), orange);
-  roof.position.set(-0.4, 2.45, 0);
-  roof.scale.set(1.05, 0.35, 1.1);
-  house.add(roof);
-  const win = new THREE.Mesh(new THREE.SphereGeometry(0.95, 10, 8), glass);
-  win.position.set(1.15, 1.55, 0);
-  win.scale.set(0.45, 0.85, 1.05);
-  house.add(win);
-  const counter = new THREE.Mesh(new THREE.SphereGeometry(1.1, 10, 8), yellow);
-  counter.position.set(-2.3, 1.2, 0);
-  counter.scale.set(0.9, 0.85, 1.05);
-  house.add(counter);
-  const dish = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), sensor);
-  dish.position.set(0.6, 2.7, 0);
-  dish.scale.set(1, 0.4, 1);
-  house.add(dish);
+  box(house, yellow, -0.5, 1.35, 0, 4.6, 2.4, 3.2);
+  box(house, yellowDark, -0.5, 2.65, 0, 4.75, 0.2, 3.35);
+  box(house, glass, 1.75, 1.55, 0, 0.1, 1.5, 2.6);
+  box(house, glass, -0.3, 1.6, 1.65, 2.6, 1.15, 0.08);
+  box(house, glass, -0.3, 1.6, -1.65, 2.6, 1.15, 0.08);
+  box(house, black, -2.5, 1.3, 0, 1.4, 1.8, 2.8);
+  box(house, orange, -2.55, 2.5, 0, 1.2, 0.35, 2.4);
+  box(house, black, 1.2, 2.85, 0, 0.9, 0.2, 0.35);
 
+  // —— Boom ——
   const boomRoot = new THREE.Group();
-  boomRoot.position.set(1.5, 1.7, 0);
+  boomRoot.position.set(1.7, 1.7, 0);
   house.add(boomRoot);
   const boom = new THREE.Group();
   boom.name = 'Boom';
   boomRoot.add(boom);
-  const boomArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 4.6, 4, 8), yellow);
-  boomArm.rotation.z = Math.PI / 2;
-  boomArm.position.set(2.3, 0.1, 0);
-  boom.add(boomArm);
+  box(boom, yellow, 2.5, 0.2, 0, 5.2, 0.65, 0.65);
+  box(boom, steel, 2.5, 0.6, 0, 4.6, 0.18, 0.18);
 
   const stickRoot = new THREE.Group();
-  stickRoot.position.set(4.7, 0.1, 0);
+  stickRoot.position.set(5.0, 0.2, 0);
   boom.add(stickRoot);
   const stick = new THREE.Group();
   stick.name = 'Stick';
   stickRoot.add(stick);
-  const stickArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 3.6, 4, 8), orange);
-  stickArm.rotation.z = Math.PI / 2;
-  stickArm.position.set(1.85, -0.05, 0);
-  stick.add(stickArm);
+  box(stick, yellowDark, 2.0, -0.15, 0, 4.2, 0.5, 0.5);
 
   const bucketRoot = new THREE.Group();
-  bucketRoot.position.set(3.75, -0.05, 0);
+  bucketRoot.position.set(4.1, -0.15, 0);
   stick.add(bucketRoot);
   const bucket = new THREE.Group();
   bucket.name = 'Bucket';
   bucketRoot.add(bucket);
-  const scoop = new THREE.Mesh(new THREE.SphereGeometry(0.75, 10, 8), metal);
-  scoop.position.set(0.45, -0.35, 0);
-  scoop.scale.set(1.15, 0.85, 1.25);
-  bucket.add(scoop);
-  for (const z of [-0.45, 0, 0.45]) {
-    const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.35, 6), metal);
-    tooth.rotation.z = Math.PI / 2;
-    tooth.position.set(1.15, -0.55, z);
-    bucket.add(tooth);
+  box(bucket, steel, 0.55, -0.4, 0, 1.4, 1.2, 1.55);
+  box(bucket, black, 1.2, -0.55, 0, 0.3, 0.75, 1.5);
+  for (const z of [-0.5, 0, 0.5]) {
+    box(bucket, steel, 1.4, -0.95, z, 0.4, 0.25, 0.25);
   }
 
   root.userData.house = house;
@@ -108,14 +88,17 @@ export function createExcavator() {
 
 export function tickExcavator(ex, time) {
   const phase = (ex.userData.phase || 0) + time;
-  const house = ex.userData.house;
-  const boom = ex.userData.boom;
-  const stick = ex.userData.stick;
-  const bucket = ex.userData.bucket;
-  if (house) house.rotation.y = Math.sin(phase * 0.18) * 0.45;
-  if (boom) boom.rotation.z = -0.32 + Math.sin(phase * 0.55) * 0.25;
-  if (stick) stick.rotation.z = 0.5 + Math.sin(phase * 0.55 + 0.8) * 0.32;
-  if (bucket) bucket.rotation.z = 0.15 + Math.sin(phase * 0.55 + 1.4) * 0.4;
+  if (ex.userData.house) ex.userData.house.rotation.y = Math.sin(phase * 0.15) * 0.4;
+  if (ex.userData.boom) ex.userData.boom.rotation.z = -0.28 + Math.sin(phase * 0.5) * 0.22;
+  if (ex.userData.stick) ex.userData.stick.rotation.z = 0.45 + Math.sin(phase * 0.5 + 0.7) * 0.28;
+  if (ex.userData.bucket) ex.userData.bucket.rotation.z = 0.12 + Math.sin(phase * 0.5 + 1.3) * 0.35;
+}
+
+function box(parent, material, x, y, z, sx, sy, sz) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material);
+  m.position.set(x, y, z);
+  parent.add(m);
+  return m;
 }
 
 function mat(color, metalness, roughness, extra = {}) {

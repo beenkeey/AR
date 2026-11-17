@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /**
- * Compact survey drone (much smaller than a helicopter). Nose +X via inner yaw.
+ * Compact angular survey drone. Much smaller than a helicopter.
  */
 export function createMiningDrone() {
   const group = new THREE.Group();
@@ -10,51 +10,32 @@ export function createMiningDrone() {
   inner.rotation.y = -Math.PI / 2;
   group.add(inner);
 
-  const body = mat(0xffffff, 0.25, 0.4);
-  const accent = mat(0xffc400, 0.12, 0.45);
-  const teal = mat(0x1ec8b0, 0.2, 0.4);
-  const black = mat(0x22262a, 0.35, 0.45);
-  const glass = mat(0x6ec8ff, 0.15, 0.15, { transparent: true, opacity: 0.5 });
-  const rotorMat = mat(0x33383e, 0.4, 0.4);
-  const led = mat(0xff4a3a, 0.1, 0.3, { emissive: 0xff2a18, emissiveIntensity: 1.2 });
+  const body = mat(0xe8ecef, 0.25, 0.4);
+  const accent = mat(0xf5c400, 0.15, 0.45);
+  const teal = mat(0x1a8a9e, 0.25, 0.4);
+  const black = mat(0x1e2226, 0.35, 0.45);
+  const glass = mat(0x1a2832, 0.2, 0.15, { transparent: true, opacity: 0.5 });
+  const rotorMat = mat(0x2a2e32, 0.4, 0.4);
+  const led = mat(0xff3b2e, 0.1, 0.3, { emissive: 0xff2a18, emissiveIntensity: 1.1 });
 
-  const fuselage = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.85, 4, 10), body);
-  fuselage.rotation.z = Math.PI / 2;
-  inner.add(fuselage);
-  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), teal);
-  belly.position.set(0, -0.18, 0);
-  belly.scale.set(1.4, 0.55, 1);
-  inner.add(belly);
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), glass);
-  nose.position.set(0.72, 0.02, 0);
-  nose.scale.set(1.1, 0.85, 0.9);
-  inner.add(nose);
-  const stripe = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.7, 3, 8), accent);
-  stripe.rotation.z = Math.PI / 2;
-  stripe.position.set(0, 0.22, 0);
-  inner.add(stripe);
-
-  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), led);
-  beacon.position.set(-0.35, 0.32, 0);
-  inner.add(beacon);
+  box(inner, body, 0, 0, 0, 1.15, 0.28, 0.55);
+  box(inner, teal, 0, -0.16, 0, 0.9, 0.12, 0.4);
+  box(inner, glass, 0.55, 0.02, 0, 0.28, 0.2, 0.42);
+  box(inner, accent, 0, 0.16, 0, 1.0, 0.06, 0.5);
+  box(inner, led, -0.4, 0.2, 0, 0.12, 0.08, 0.12);
 
   const rotors = [];
   const arms = [
-    [0.55, 0.55],
-    [0.55, -0.55],
-    [-0.55, 0.55],
-    [-0.55, -0.55],
+    [0.48, 0.48],
+    [0.48, -0.48],
+    [-0.48, 0.48],
+    [-0.48, -0.48],
   ];
   for (const [x, z] of arms) {
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.55, 3, 6), black);
-    arm.position.set(x * 0.35, 0.08, z * 0.35);
-    arm.lookAt(x, 0.08, z);
-    inner.add(arm);
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.08, 8), accent);
-    hub.position.set(x, 0.14, z);
-    inner.add(hub);
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.02, 0.07), rotorMat);
-    blade.position.set(x, 0.2, z);
+    box(inner, black, x * 0.4, 0.05, z * 0.4, 0.55, 0.06, 0.08);
+    box(inner, accent, x, 0.1, z, 0.12, 0.08, 0.12);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.02, 0.06), rotorMat);
+    blade.position.set(x, 0.16, z);
     inner.add(blade);
     const blade2 = blade.clone();
     blade2.rotation.y = Math.PI / 2;
@@ -62,12 +43,8 @@ export function createMiningDrone() {
     rotors.push(blade, blade2);
   }
 
-  for (const z of [0.22, -0.22]) {
-    const skid = new THREE.Mesh(new THREE.CapsuleGeometry(0.025, 0.7, 3, 6), black);
-    skid.rotation.z = Math.PI / 2;
-    skid.position.set(0, -0.32, z);
-    inner.add(skid);
-  }
+  box(inner, black, 0, -0.28, 0.2, 0.7, 0.04, 0.05);
+  box(inner, black, 0, -0.28, -0.2, 0.7, 0.04, 0.05);
 
   group.userData.rotors = rotors;
   group.traverse((n) => {
@@ -77,6 +54,13 @@ export function createMiningDrone() {
     }
   });
   return group;
+}
+
+function box(parent, material, x, y, z, sx, sy, sz) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material);
+  m.position.set(x, y, z);
+  parent.add(m);
+  return m;
 }
 
 function mat(color, metalness, roughness, extra = {}) {

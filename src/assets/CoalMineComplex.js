@@ -2,122 +2,96 @@ import * as THREE from 'three';
 import { createExcavator, tickExcavator } from './Excavator.js';
 
 /**
- * Colorful pit infrastructure: crusher, conveyors, control tower. No people.
+ * Angular pit infrastructure — crusher, conveyor, control tower. No people.
  */
 export function createCoalMineComplex() {
   const root = new THREE.Group();
   root.name = 'CoalMineComplex';
 
-  const dirt = mat(0xe08940, 0.04, 0.9);
-  const coal = mat(0x2e2a28, 0.04, 0.92);
-  const rock = mat(0xd4a574, 0.05, 0.88);
-  const yellow = mat(0xffc400, 0.1, 0.45);
-  const orange = mat(0xff6a1a, 0.1, 0.48);
-  const teal = mat(0x1ec8b0, 0.2, 0.42);
-  const metal = mat(0xa8b2ba, 0.5, 0.35);
-  const dark = mat(0x3a424a, 0.35, 0.48);
-  const concrete = mat(0xc8c2b8, 0.08, 0.82);
-  const led = mat(0x48e0ff, 0.2, 0.3, { emissive: 0x28c8ff, emissiveIntensity: 1.1 });
+  const dirt = mat(0xd47a38, 0.04, 0.9);
+  const coal = mat(0x2a2624, 0.04, 0.92);
+  const rock = mat(0xc9955c, 0.05, 0.88);
+  const yellow = mat(0xf5c400, 0.12, 0.45);
+  const orange = mat(0xe86a12, 0.12, 0.48);
+  const teal = mat(0x1a8a9e, 0.25, 0.42);
+  const metal = mat(0x8a949c, 0.5, 0.35);
+  const dark = mat(0x2a3036, 0.35, 0.48);
+  const concrete = mat(0xb8b2a8, 0.08, 0.82);
+  const led = mat(0x48e0ff, 0.2, 0.3, { emissive: 0x28c8ff, emissiveIntensity: 1.0 });
 
-  const pit = new THREE.Group();
-  pit.name = 'InnerPit';
+  // Inner benches — solid closed rings
   const tiers = [
-    { y: 0.2, r: 14, h: 0.6, c: rock },
-    { y: -2.2, r: 10, h: 2.4, c: dirt },
-    { y: -4.8, r: 6.5, h: 2.6, c: coal },
+    { y: 0.0, outer: 14, inner: 10, mat: rock },
+    { y: -2.4, outer: 10, inner: 6.2, mat: dirt },
+    { y: -5.0, outer: 6.2, inner: 0, mat: coal },
   ];
-  for (const t of tiers) {
-    const ring = new THREE.Mesh(
-      new THREE.CylinderGeometry(t.r, t.r + 0.8, t.h, 36, 1, true),
-      t.c,
-    );
-    ring.position.y = t.y;
-    pit.add(ring);
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(t.r - 0.3, 32), t.c);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = t.y - t.h * 0.5 + 0.02;
-    pit.add(floor);
+  const segs = 36;
+  for (let i = 0; i < tiers.length; i += 1) {
+    const t = tiers[i];
+    const nextY = tiers[i + 1]?.y ?? (t.y - 2.5);
+    const h = t.y - nextY;
+    if (t.inner <= 0.01) {
+      const disk = new THREE.Mesh(new THREE.CylinderGeometry(t.outer, t.outer, 0.7, segs), t.mat);
+      disk.position.y = t.y - 0.25;
+      root.add(disk);
+    } else {
+      const top = new THREE.Mesh(new THREE.RingGeometry(t.inner, t.outer, segs), t.mat);
+      top.rotation.x = -Math.PI / 2;
+      top.position.y = t.y;
+      root.add(top);
+      const wall = new THREE.Mesh(
+        new THREE.CylinderGeometry(t.inner, t.inner, h, segs, 1, true),
+        t.mat,
+      );
+      wall.position.y = t.y - h * 0.5;
+      wall.material = t.mat.clone();
+      wall.material.side = THREE.DoubleSide;
+      root.add(wall);
+    }
   }
-  root.add(pit);
 
-  for (const [x, z, s] of [[9, -6, 3.2], [-8, -5, 3.6], [5, 8, 2.8]]) {
-    const pile = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), coal);
-    pile.position.set(x, s * 0.32, z);
-    pile.scale.set(s, s * 0.5, s * 0.85);
+  for (const [x, z, s] of [[9, -6, 3.0], [-7, -4, 3.4], [5, 7, 2.6]]) {
+    const pile = new THREE.Mesh(new THREE.BoxGeometry(s * 1.6, s * 0.9, s * 1.4), coal);
+    pile.position.set(x, s * 0.4, z);
     root.add(pile);
   }
 
+  // Conveyor — box truss
   const conv = new THREE.Group();
-  conv.name = 'Conveyor';
-  const belt = new THREE.Mesh(new THREE.CapsuleGeometry(0.55, 20, 4, 10), metal);
-  belt.rotation.z = Math.PI / 2;
-  conv.add(belt);
-  const top = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 19.5, 4, 8), dark);
-  top.rotation.z = Math.PI / 2;
-  top.position.y = 0.25;
-  conv.add(top);
+  box(conv, metal, 0, 0, 0, 22, 0.4, 1.4);
+  box(conv, dark, 0, 0.3, 0, 21.5, 0.1, 1.1);
   for (let i = -9; i <= 9; i += 3) {
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.2, 8), yellow);
-    leg.position.set(i, -0.7, 0.55);
-    conv.add(leg);
-    const leg2 = leg.clone();
-    leg2.position.z = -0.55;
-    conv.add(leg2);
+    box(conv, yellow, i, -0.7, 0.6, 0.18, 1.3, 0.18);
+    box(conv, yellow, i, -0.7, -0.6, 0.18, 1.3, 0.18);
   }
-  conv.position.set(4, 1.8, -10);
+  conv.position.set(4, 2.0, -10);
   conv.rotation.y = 0.4;
-  conv.rotation.z = 0.12;
+  conv.rotation.z = 0.1;
   root.add(conv);
 
-  // Crusher — rounded tower
-  const crusher = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.9, 7.6, 16), concrete);
-  crusher.position.set(10, 3.8, -12);
-  root.add(crusher);
-  const crusherRoof = new THREE.Mesh(new THREE.SphereGeometry(2.9, 14, 10), orange);
-  crusherRoof.position.set(10, 7.9, -12);
-  crusherRoof.scale.set(1, 0.35, 1);
-  root.add(crusherRoof);
-  const panel = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.8, 0.15), yellow);
-  panel.position.set(10, 4.5, -9.15);
-  root.add(panel);
-  const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 2.4, 10), teal);
-  stack.position.set(10, 9.2, -12);
-  root.add(stack);
-  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), led);
-  beacon.position.set(10, 10.6, -12);
-  root.add(beacon);
+  // Crusher building
+  box(root, concrete, 10, 3.8, -12, 5.6, 7.6, 5.6);
+  box(root, orange, 10, 7.8, -12, 5.9, 0.35, 5.9);
+  box(root, yellow, 10, 4.6, -9.15, 3.8, 3.0, 0.2);
+  box(root, teal, 10, 9.2, -12, 1.2, 2.4, 1.2);
+  box(root, led, 10, 10.6, -12, 0.5, 0.5, 0.5);
 
   // Control tower
-  const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.2, 11, 14), concrete);
-  tower.position.set(-11, 5.5, 8);
-  root.add(tower);
-  const towerRoof = new THREE.Mesh(new THREE.SphereGeometry(2.3, 14, 10), teal);
-  towerRoof.position.set(-11, 11.3, 8);
-  towerRoof.scale.set(1, 0.4, 1);
-  root.add(towerRoof);
-  const glassBand = new THREE.Mesh(new THREE.TorusGeometry(2.05, 0.35, 8, 20), mat(0x6ec8ff, 0.15, 0.2, { transparent: true, opacity: 0.5 }));
-  glassBand.position.set(-11, 9.2, 8);
-  glassBand.rotation.x = Math.PI / 2;
-  root.add(glassBand);
-  for (const [dx, dz] of [[-1.0, 1.0], [1.0, 1.0], [-1.0, -1.0], [1.0, -1.0]]) {
-    const dish = new THREE.Mesh(new THREE.SphereGeometry(0.38, 10, 8), led);
-    dish.position.set(-11 + dx, 12.2, 8 + dz);
-    dish.scale.set(1, 0.4, 1);
-    root.add(dish);
+  box(root, concrete, -11, 5.5, 8, 4.6, 11, 4.6);
+  box(root, teal, -11, 11.2, 8, 4.9, 0.35, 4.9);
+  box(root, yellow, -11, 9.2, 10.35, 3.4, 2.1, 0.15);
+  box(root, dark, -11, 13.6, 8, 0.2, 3.0, 0.2);
+  box(root, led, -11, 15.2, 8, 0.4, 0.4, 0.4);
+  for (const [dx, dz] of [[-1.2, 1.2], [1.2, 1.2], [-1.2, -1.2], [1.2, -1.2]]) {
+    box(root, led, -11 + dx, 12.0, 8 + dz, 0.7, 0.2, 0.7);
   }
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 2.8, 8), dark);
-  mast.position.set(-11, 13.5, 8);
-  root.add(mast);
-  const topLed = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 6), led);
-  topLed.position.set(-11, 15.1, 8);
-  root.add(topLed);
 
-  // One excavator on the complex bench only
+  // One excavator on upper bench
   const excavators = [];
   const ex = createExcavator();
-  ex.position.set(3, -2.2, -1);
-  ex.rotation.y = 0.9;
-  ex.scale.setScalar(0.9);
+  ex.position.set(4, -2.4, 1);
+  ex.rotation.y = 0.85;
+  ex.scale.setScalar(0.85);
   root.add(ex);
   excavators.push(ex);
   root.userData.excavators = excavators;
@@ -158,6 +132,13 @@ export function measureRig(root) {
   const box3 = new THREE.Box3().setFromObject(root);
   const size = box3.getSize(new THREE.Vector3());
   return { triangles: Math.round(triangles), height: size.y };
+}
+
+function box(parent, material, x, y, z, sx, sy, sz) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material);
+  m.position.set(x, y, z);
+  parent.add(m);
+  return m;
 }
 
 function mat(color, metalness, roughness, extra = {}) {

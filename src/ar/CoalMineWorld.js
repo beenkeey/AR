@@ -101,120 +101,189 @@ export class CoalMineWorld {
   }
 
   /**
-   * Multi-bench open pit centered in front of the viewer.
-   * Rim ~75 m radius, bottom ~22 m deep — everything else lives on these benches.
+   * Solid open-pit: each terrace is a closed slab + face so sky never shows between rings.
    */
   _quarryBowl() {
     const group = new THREE.Group();
     group.name = 'QuarryBowl';
-    // Shift pit so the viewer stands near the rim looking in
     const cx = 0;
     const cz = -CONFIG.exhibition.distance * 0.55;
     group.position.set(cx, 0, cz);
 
-    const rock = new THREE.MeshStandardMaterial({ color: 0xd4a574, roughness: 0.9, metalness: 0.04 });
-    const dirt = new THREE.MeshStandardMaterial({ color: 0xe08940, roughness: 0.88, metalness: 0.04 });
-    const clay = new THREE.MeshStandardMaterial({ color: 0xc45a3a, roughness: 0.9, metalness: 0.04 });
-    const coal = new THREE.MeshStandardMaterial({ color: 0x2e2a28, roughness: 0.92, metalness: 0.06 });
-    const road = new THREE.MeshStandardMaterial({ color: 0x4a5560, roughness: 0.82, metalness: 0.08 });
-    const yellow = new THREE.MeshStandardMaterial({ color: 0xffc400, roughness: 0.45, metalness: 0.1 });
-    const green = new THREE.MeshStandardMaterial({ color: 0x3dcc6a, roughness: 0.5, metalness: 0.08 });
+    const rock = mat(0xc9955c, 0.04, 0.9);
+    const dirt = mat(0xd47a38, 0.04, 0.88);
+    const clay = mat(0xb85a32, 0.04, 0.9);
+    const coal = mat(0x2a2624, 0.05, 0.92);
+    const road = mat(0x4a5360, 0.08, 0.82);
+    const yellow = mat(0xf5c400, 0.12, 0.45);
+    const green = mat(0x2faf55, 0.1, 0.5);
+    const segs = WEAK ? 40 : 64;
 
-    // Terraces: layered ochre / rust / coal for readable depth
-    const benches = [
-      { r: 72, y: -0.2, h: 1.2, mat: rock },
-      { r: 58, y: -5.5, h: 5.2, mat: dirt },
-      { r: 46, y: -11.0, h: 5.4, mat: clay },
-      { r: 34, y: -16.5, h: 5.4, mat: dirt },
-      { r: 22, y: -21.5, h: 5.0, mat: coal },
-      { r: 12, y: -25.5, h: 4.0, mat: coal },
+    // outer, inner, deckY, faceMat, deckMat
+    const levels = [
+      { outer: 74, inner: 60, y: 0.0, face: rock, deck: rock },
+      { outer: 60, inner: 48, y: -5.5, face: dirt, deck: dirt },
+      { outer: 48, inner: 36, y: -11.0, face: clay, deck: clay },
+      { outer: 36, inner: 24, y: -16.5, face: dirt, deck: dirt },
+      { outer: 24, inner: 14, y: -21.5, face: coal, deck: coal },
+      { outer: 14, inner: 0, y: -26.0, face: coal, deck: coal },
     ];
 
-    for (let i = 0; i < benches.length; i += 1) {
-      const b = benches[i];
-      const nextR = benches[i + 1]?.r ?? 4;
-      // Floor annulus / disk
-      const floor = new THREE.Mesh(
-        i < benches.length - 1
-          ? new THREE.RingGeometry(nextR + 0.4, b.r - 0.3, WEAK ? 36 : 56)
-          : new THREE.CircleGeometry(b.r - 0.2, WEAK ? 28 : 40),
-        b.mat,
-      );
-      floor.rotation.x = -Math.PI / 2;
-      floor.position.y = b.y;
-      floor.receiveShadow = true;
-      group.add(floor);
+    for (let i = 0; i < levels.length; i += 1) {
+      const lv = levels[i];
+      const nextY = levels[i + 1]?.y ?? (lv.y - 4);
+      const wallH = Math.max(0.5, lv.y - nextY);
 
-      // Vertical / slightly tapered wall to next level
-      if (i < benches.length - 1) {
-        const wall = new THREE.Mesh(
-          new THREE.CylinderGeometry(nextR + 0.6, b.r - 0.5, b.h, WEAK ? 36 : 56, 1, true),
-          b.mat,
+      // Solid deck: thick ring (or disk at bottom) — no radial gaps
+      if (lv.inner <= 0.01) {
+        const disk = new THREE.Mesh(new THREE.CylinderGeometry(lv.outer, lv.outer, 0.9, segs), lv.deck);
+        disk.position.y = lv.y - 0.35;
+        disk.receiveShadow = true;
+        disk.castShadow = true;
+        group.add(disk);
+      } else {
+        // Top surface
+        const top = new THREE.Mesh(
+          new THREE.RingGeometry(lv.inner, lv.outer, segs),
+          lv.deck,
         );
-        wall.position.y = b.y - b.h * 0.5;
-        wall.receiveShadow = true;
-        wall.castShadow = true;
-        group.add(wall);
+        top.rotation.x = -Math.PI / 2;
+        top.position.y = lv.y;
+        top.receiveShadow = true;
+        group.add(top);
+        // Underside (closes the slab)
+        const bot = new THREE.Mesh(
+          new THREE.RingGeometry(lv.inner, lv.outer, segs),
+          lv.deck,
+        );
+        bot.rotation.x = Math.PI / 2;
+        bot.position.y = lv.y - 0.85;
+        group.add(bot);
+        // Outer rim face of the slab
+        const outerWall = new THREE.Mesh(
+          new THREE.CylinderGeometry(lv.outer, lv.outer, 0.85, segs, 1, true),
+          lv.deck,
+        );
+        outerWall.position.y = lv.y - 0.425;
+        outerWall.material = lv.deck.clone();
+        outerWall.material.side = THREE.DoubleSide;
+        group.add(outerWall);
+        // Inner rim face of the slab (meets the drop wall)
+        const innerLip = new THREE.Mesh(
+          new THREE.CylinderGeometry(lv.inner, lv.inner, 0.85, segs, 1, true),
+          lv.deck,
+        );
+        innerLip.position.y = lv.y - 0.425;
+        innerLip.material = lv.deck.clone();
+        innerLip.material.side = THREE.DoubleSide;
+        group.add(innerLip);
+      }
+
+      // Drop face to next terrace — solid closed frustum shell with DoubleSide
+      if (i < levels.length - 1) {
+        const next = levels[i + 1];
+        const face = new THREE.Mesh(
+          new THREE.CylinderGeometry(next.outer, lv.inner, wallH, segs, 1, true),
+          lv.face,
+        );
+        face.position.y = lv.y - wallH * 0.5;
+        face.material = lv.face.clone();
+        face.material.side = THREE.DoubleSide;
+        face.receiveShadow = true;
+        face.castShadow = true;
+        group.add(face);
+        // Extra thickness ring so grazing angles never show sky
+        const filler = new THREE.Mesh(
+          new THREE.CylinderGeometry(lv.inner + 0.35, next.outer + 0.35, wallH, segs, 1, true),
+          lv.face,
+        );
+        filler.position.y = lv.y - wallH * 0.5;
+        filler.material = lv.face.clone();
+        filler.material.side = THREE.BackSide;
+        group.add(filler);
       }
     }
 
-    // Bottom coal seam
-    const bottom = new THREE.Mesh(new THREE.CircleGeometry(11, 32), coal);
-    bottom.rotation.x = -Math.PI / 2;
-    bottom.position.y = -25.7;
-    group.add(bottom);
-
-    // Spiral haul road ribbons on benches
-    this._addSpiralRoads(group, road);
-
-    // Rim safety berm + markers
-    const berm = new THREE.Mesh(
-      new THREE.TorusGeometry(73, 1.1, 8, WEAK ? 40 : 64),
-      green,
-    );
-    berm.rotation.x = Math.PI / 2;
-    berm.position.y = 0.6;
-    group.add(berm);
-
-    for (let i = 0; i < 16; i += 1) {
-      const a = (i / 16) * Math.PI * 2;
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 1.6, 8), yellow);
-      post.position.set(Math.cos(a) * 74, 1.2, Math.sin(a) * 74);
-      group.add(post);
-      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), green);
-      cap.position.set(Math.cos(a) * 74, 2.1, Math.sin(a) * 74);
-      group.add(cap);
+    // Flat haul roads on decks (not floating tori)
+    const roadLevels = [
+      { r: 67, y: 0.06, w: 5.5 },
+      { r: 54, y: -5.44, w: 5.0 },
+      { r: 42, y: -10.94, w: 4.8 },
+      { r: 30, y: -16.44, w: 4.5 },
+      { r: 19, y: -21.44, w: 4.0 },
+    ];
+    for (const rv of roadLevels) {
+      const strip = new THREE.Mesh(
+        new THREE.RingGeometry(rv.r - rv.w * 0.5, rv.r + rv.w * 0.5, segs),
+        road,
+      );
+      strip.rotation.x = -Math.PI / 2;
+      strip.position.y = rv.y;
+      strip.receiveShadow = true;
+      group.add(strip);
+      // Center line
+      const line = new THREE.Mesh(
+        new THREE.RingGeometry(rv.r - 0.12, rv.r + 0.12, segs),
+        yellow,
+      );
+      line.rotation.x = -Math.PI / 2;
+      line.position.y = rv.y + 0.02;
+      group.add(line);
+    }
+    // Ramp slabs between decks
+    for (let i = 0; i < roadLevels.length - 1; i += 1) {
+      const a = i * 1.4 + 0.3;
+      const r0 = roadLevels[i].r;
+      const r1 = roadLevels[i + 1].r;
+      const y0 = roadLevels[i].y;
+      const y1 = roadLevels[i + 1].y;
+      const ramp = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.4, 16), road);
+      ramp.position.set(Math.cos(a) * ((r0 + r1) * 0.5), (y0 + y1) * 0.5, Math.sin(a) * ((r0 + r1) * 0.5));
+      ramp.lookAt(Math.cos(a) * r1, y1, Math.sin(a) * r1);
+      ramp.rotateX(-Math.atan2(y0 - y1, Math.abs(r0 - r1)) * 0.5);
+      ramp.castShadow = true;
+      ramp.receiveShadow = true;
+      group.add(ramp);
     }
 
-    // Coal piles on mid benches
+    // Rim berm
+    const berm = new THREE.Mesh(new THREE.TorusGeometry(74.5, 0.9, 8, segs), green);
+    berm.rotation.x = Math.PI / 2;
+    berm.position.y = 0.5;
+    group.add(berm);
+    for (let i = 0; i < 16; i += 1) {
+      const a = (i / 16) * Math.PI * 2;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.5, 0.22), yellow);
+      post.position.set(Math.cos(a) * 75.2, 1.15, Math.sin(a) * 75.2);
+      group.add(post);
+    }
+
+    // Coal piles on decks
     for (const [ang, rad, y, s] of [
-      [0.4, 40, -11.2, 5],
-      [2.1, 38, -11.2, 4.2],
-      [3.8, 28, -16.7, 4.8],
-      [5.2, 26, -16.7, 3.6],
-      [1.2, 18, -21.7, 3.2],
+      [0.5, 42, -11.0, 4.5],
+      [2.2, 40, -11.0, 3.8],
+      [3.9, 30, -16.5, 4.2],
+      [5.3, 28, -16.5, 3.4],
     ]) {
       const pile = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), coal);
-      pile.position.set(Math.cos(ang) * rad, y + s * 0.28, Math.sin(ang) * rad);
-      pile.scale.set(s, s * 0.48, s * 0.85);
+      pile.position.set(Math.cos(ang) * rad, y + s * 0.32, Math.sin(ang) * rad);
+      pile.scale.set(s, s * 0.5, s * 0.85);
       pile.castShadow = true;
       group.add(pile);
     }
 
-    // Lighting masts on upper benches (inside pit)
+    // Light masts
     for (const [ang, rad, y] of [
-      [0.2, 55, -5.5],
-      [1.8, 54, -5.5],
-      [3.4, 52, -5.5],
-      [5.0, 53, -5.5],
-      [0.9, 42, -11],
-      [4.2, 40, -11],
+      [0.3, 54, -5.5],
+      [2.0, 53, -5.5],
+      [3.6, 52, -5.5],
+      [5.1, 53, -5.5],
     ]) {
-      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 9, 8), road);
+      const mast = new THREE.Mesh(new THREE.BoxGeometry(0.25, 9, 0.25), road);
       mast.position.set(Math.cos(ang) * rad, y + 4.5, Math.sin(ang) * rad);
       group.add(mast);
       const lamp = new THREE.Mesh(
-        new THREE.SphereGeometry(0.4, 8, 6),
+        new THREE.BoxGeometry(0.7, 0.35, 0.7),
         new THREE.MeshStandardMaterial({
           color: 0xffe08a,
           emissive: 0xffc056,
@@ -224,48 +293,14 @@ export class CoalMineWorld {
       );
       lamp.position.set(Math.cos(ang) * rad, y + 9.2, Math.sin(ang) * rad);
       group.add(lamp);
-      const pl = new THREE.PointLight(0xffd090, 1.5, 32, 1.8);
+      const pl = new THREE.PointLight(0xffd090, 1.4, 30, 1.8);
       pl.position.copy(lamp.position);
       group.add(pl);
     }
 
     this._quarryOrigin = new THREE.Vector3(cx, 0, cz);
+    this._benchYs = levels.map((l) => l.y);
     return group;
-  }
-
-  _addSpiralRoads(group, roadMat) {
-    const levels = [
-      { r: 64, y: -0.05 },
-      { r: 52, y: -5.35 },
-      { r: 40, y: -10.85 },
-      { r: 28, y: -16.35 },
-      { r: 17, y: -21.35 },
-    ];
-    for (const lv of levels) {
-      const ribbon = new THREE.Mesh(
-        new THREE.TorusGeometry(lv.r, 2.4, 6, WEAK ? 40 : 64),
-        roadMat,
-      );
-      ribbon.rotation.x = Math.PI / 2;
-      ribbon.position.y = lv.y;
-      ribbon.receiveShadow = true;
-      group.add(ribbon);
-    }
-    // Ramp connectors between benches
-    for (let i = 0; i < levels.length - 1; i += 1) {
-      const a = i * 1.35;
-      const r0 = levels[i].r;
-      const r1 = levels[i + 1].r;
-      const y0 = levels[i].y;
-      const y1 = levels[i + 1].y;
-      const ramp = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.35, 14), roadMat);
-      const mx = Math.cos(a) * ((r0 + r1) * 0.5);
-      const mz = Math.sin(a) * ((r0 + r1) * 0.5);
-      ramp.position.set(mx, (y0 + y1) * 0.5, mz);
-      ramp.lookAt(Math.cos(a) * r1, y1, Math.sin(a) * r1);
-      ramp.rotateX(-Math.atan2(y0 - y1, r0 - r1) * 0.35);
-      group.add(ramp);
-    }
   }
 
   _quarryLocalToWorld(x, y, z, out) {
@@ -328,10 +363,10 @@ export class CoalMineWorld {
 
   _addBenchExcavators() {
     const o = this._quarryOrigin || new THREE.Vector3(0, 0, -CONFIG.exhibition.distance * 0.55);
-    // Only two excavators in the whole pit
+    // Tracks sit on deck y (model origin at track bottom)
     const poses = [
-      { x: 38, y: -11.0, z: 8, yaw: 1.4, s: 1.55 },
-      { x: -18, y: -16.5, z: -20, yaw: 2.1, s: 1.35 },
+      { x: 42, y: -11.0, z: 6, yaw: 1.4, s: 1.5 },
+      { x: -20, y: -16.5, z: -18, yaw: 2.1, s: 1.3 },
     ];
     for (const p of poses) {
       const ex = createExcavator();
@@ -417,6 +452,10 @@ export class CoalMineWorld {
       tickExcavator(ex, this._time);
     }
   }
+}
+
+function mat(color, metalness, roughness) {
+  return new THREE.MeshStandardMaterial({ color, metalness, roughness });
 }
 
 function sampleClosedSpline(points, u, out) {
