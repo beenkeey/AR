@@ -4,7 +4,6 @@ import { createBelAZ } from '../assets/BelAZ.js';
 import { createMiningDrone } from '../assets/MiningDrone.js';
 import { createExcavator, tickExcavator } from '../assets/Excavator.js';
 import { createQuarryTerrain } from './QuarryTerrain.js';
-import { buildSpiralRoutes } from './buildHaulRoutes.js';
 
 const WEAK = CONFIG.performance.weak;
 const FOG = 0xa8c8e8;
@@ -103,11 +102,12 @@ export class CoalMineWorld {
     return group;
   }
 
-  /** Buildings ONLY on solid rim plateau (r > 82), bottoms at y=0. */
+  /** Buildings / stockyard ONLY outside the haul roads (r > 80). */
   _addRimInfrastructure() {
+    const o = this._quarryOrigin;
     const group = new THREE.Group();
     group.name = 'RimInfrastructure';
-    group.position.copy(this._quarryOrigin);
+    group.position.copy(o);
 
     const concrete = mat(0xb4aea4, 0.08, 0.8);
     const yellow = mat(0xf0c000, 0.15, 0.45);
@@ -117,43 +117,60 @@ export class CoalMineWorld {
     const coal = mat(0x2a2622, 0.05, 0.92);
     const metal = mat(0x8a949c, 0.5, 0.35);
 
-    // Crusher — grounded (center Y = half height)
-    box(group, concrete, 95, 4.5, -8, 9, 9, 9);
-    box(group, orange, 95, 9.2, -8, 9.4, 0.4, 9.4);
-    box(group, yellow, 95, 5.5, -3.3, 5.5, 3.5, 0.25);
-    box(group, teal, 95, 10.8, -8, 1.8, 2.8, 1.8);
+    // Crusher — far +X rim
+    box(group, concrete, 92, 5, -10, 8, 10, 8);
+    box(group, orange, 92, 10.3, -10, 8.4, 0.4, 8.4);
+    box(group, yellow, 92, 6, -5.8, 5, 4, 0.25);
+    box(group, teal, 92, 12, -10, 1.6, 3, 1.6);
 
-    // Control tower — grounded
-    box(group, concrete, -94, 6, 18, 7, 12, 7);
-    box(group, teal, -94, 12.3, 18, 7.4, 0.4, 7.4);
-    box(group, yellow, -94, 9.5, 21.6, 4.5, 2.5, 0.2);
-    box(group, dark, -94, 14.2, 18, 0.28, 3.2, 0.28);
+    // Control tower — far −X rim
+    box(group, concrete, -90, 7, 15, 6, 14, 6);
+    box(group, teal, -90, 14.3, 15, 6.4, 0.4, 6.4);
+    box(group, yellow, -90, 11, 18.1, 4, 2.4, 0.2);
+    box(group, dark, -90, 16.5, 15, 0.25, 3.5, 0.25);
 
-    // Angular coal heaps (not spheres)
-    for (const [x, z, sx, sy, sz] of [
-      [100, 28, 8, 3.2, 6],
-      [108, 20, 6, 2.6, 5],
-      [-100, -22, 7, 3.0, 5.5],
+    // Conveyor from rim toward pit (stops before roads)
+    const conv = new THREE.Group();
+    box(conv, metal, 0, 0, 0, 28, 0.45, 1.5);
+    box(conv, dark, 0, 0.32, 0, 27.5, 0.12, 1.15);
+    for (let i = -12; i <= 12; i += 4) {
+      box(conv, yellow, i, -0.8, 0.7, 0.2, 1.5, 0.2);
+      box(conv, yellow, i, -0.8, -0.7, 0.2, 1.5, 0.2);
+    }
+    conv.position.set(78, 3.2, -28);
+    conv.rotation.y = 0.9;
+    conv.rotation.z = 0.12;
+    group.add(conv);
+
+    // Coal stock piles on rim
+    for (const [x, z, s] of [
+      [88, 25, 7],
+      [95, 35, 5.5],
+      [-85, -30, 6.5],
+      [-95, -18, 5],
     ]) {
-      box(group, coal, x, sy * 0.5, z, sx, sy, sz);
-      box(group, coal, x + 1.5, sy * 0.35, z - 1.2, sx * 0.6, sy * 0.7, sz * 0.7);
+      const pile = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), coal);
+      pile.position.set(x, s * 0.35, z);
+      pile.scale.set(s, s * 0.52, s * 0.9);
+      pile.castShadow = true;
+      group.add(pile);
     }
 
-    // Silos — grounded
-    for (const [x, z] of [[105, 5], [112, 12], [-105, 8]]) {
-      const silo = new THREE.Mesh(new THREE.CylinderGeometry(3.0, 3.0, 8, 14), metal);
-      silo.position.set(x, 4.0, z);
+    // Silos
+    for (const [x, z] of [[100, 8], [108, 14], [-100, 5]]) {
+      const silo = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 9, 14), metal);
+      silo.position.set(x, 4.5, z);
       group.add(silo);
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.35, 14), orange);
-      cap.position.set(x, 8.2, z);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.4, 0.35, 14), orange);
+      cap.position.set(x, 9.2, z);
       group.add(cap);
     }
 
-    // Light masts
-    for (const [x, z] of [[86, 42], [-86, 42], [86, -48], [-75, -52]]) {
-      box(group, dark, x, 5.5, z, 0.28, 11, 0.28);
+    // Light masts on rim
+    for (const [x, z] of [[82, 40], [-82, 40], [82, -45], [-70, -50]]) {
+      box(group, dark, x, 6, z, 0.3, 12, 0.3);
       const lamp = new THREE.Mesh(
-        new THREE.BoxGeometry(0.85, 0.35, 0.85),
+        new THREE.BoxGeometry(0.9, 0.4, 0.9),
         new THREE.MeshStandardMaterial({
           color: 0xffe08a,
           emissive: 0xffc056,
@@ -161,19 +178,20 @@ export class CoalMineWorld {
           roughness: 0.4,
         }),
       );
-      lamp.position.set(x, 11.2, z);
+      lamp.position.set(x, 12.2, z);
       group.add(lamp);
-      const pl = new THREE.PointLight(0xffd090, 1.4, 38, 1.8);
-      pl.position.set(x, 10.8, z);
+      const pl = new THREE.PointLight(0xffd090, 1.5, 40, 1.8);
+      pl.position.set(x, 11.8, z);
       group.add(pl);
     }
 
+    // Safety berm posts
     const berm = new THREE.Mesh(
-      new THREE.TorusGeometry(79.5, 0.7, 8, WEAK ? 40 : 64),
+      new THREE.TorusGeometry(79, 0.85, 8, WEAK ? 40 : 64),
       mat(0x2faf55, 0.1, 0.5),
     );
     berm.rotation.x = Math.PI / 2;
-    berm.position.y = 0.4;
+    berm.position.y = 0.45;
     group.add(berm);
 
     group.traverse((n) => {
@@ -186,15 +204,12 @@ export class CoalMineWorld {
   }
 
   _addBelAZs() {
-    const roads = this.terrain?.userData?.roadDefs || [];
-    const ramps = this.terrain?.userData?.ramps || [];
-    const routes = buildSpiralRoutes(roads, ramps);
+    const routes = CONFIG.exhibition.belazRoutes || [];
     routes.forEach((route, i) => {
-      if (!route.waypoints?.length) return;
       const truck = createBelAZ();
       truck.scale.setScalar(route.scale || 1.35);
       this.scene.add(truck);
-      const pts = route.waypoints.map((p) => {
+      const pts = (route.waypoints || []).map((p) => {
         const v = new THREE.Vector3();
         this._quarryLocalToWorld(p[0], p[1], p[2], v);
         return v;
@@ -202,8 +217,8 @@ export class CoalMineWorld {
       const mover = {
         group: truck,
         points: pts,
-        duration: route.duration || 80,
-        phase: route.phase || i * 0.28,
+        duration: route.duration || 50,
+        phase: route.phase || i * 0.33,
         _pos: new THREE.Vector3(),
         _next: new THREE.Vector3(),
         _q: new THREE.Quaternion(),
@@ -243,18 +258,13 @@ export class CoalMineWorld {
 
   _addBenchExcavators() {
     const o = this._quarryOrigin;
-    const heightAt = this.terrain?.userData?.heightAt;
-    // Local xz on decks; Y from terrain so tracks sit ON the surface
     const poses = [
-      { x: 46, z: 10, yaw: 1.2, s: 1.4 },
-      { x: -28, z: -20, yaw: 2.4, s: 1.2 },
+      { x: 46, y: -9.8, z: 12, yaw: 1.2, s: 1.45 },
+      { x: -30, y: -15.0, z: -22, yaw: 2.4, s: 1.25 },
     ];
     for (const p of poses) {
       const ex = createExcavator();
-      const r = Math.hypot(p.x, p.z);
-      const groundY = heightAt ? heightAt(r) : 0;
-      // Tracks bottom is y=0 in model space
-      ex.position.set(o.x + p.x, groundY + 0.02, o.z + p.z);
+      ex.position.set(o.x + p.x, p.y, o.z + p.z);
       ex.rotation.y = p.yaw;
       ex.scale.setScalar(p.s);
       this.scene.add(ex);
