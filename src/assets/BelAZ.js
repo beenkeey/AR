@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyFinish } from './finishMaps.js';
 
 /**
  * BelAZ 75710-style mining dump truck (hard-surface).
@@ -9,18 +10,18 @@ export function createBelAZ() {
   const root = new THREE.Group();
   root.name = 'BelAZ';
 
-  const Y = mat(0xf0c000, 0.22, 0.46);
-  const Yd = mat(0xd4a000, 0.24, 0.5);
-  const Blu = mat(0x1a4fad, 0.28, 0.38);
-  const BluD = mat(0x0d3278, 0.32, 0.4);
-  const Ch = mat(0x3a4149, 0.48, 0.38);
-  const St = mat(0x9aa3ab, 0.58, 0.32);
-  const Blk = mat(0x17191b, 0.18, 0.55);
-  const Rub = mat(0x0e1012, 0.04, 0.9);
-  const Gl = mat(0x152028, 0.4, 0.12, { transparent: true, opacity: 0.55 });
-  const Coal = mat(0x24201c, 0.05, 0.92);
+  const Y = mat(0xe4ae00, 0.05, 0.58);
+  const Yd = mat(0xc49200, 0.05, 0.64);
+  const Blu = mat(0x1a4fad, 0.12, 0.46);
+  const BluD = mat(0x0d3278, 0.14, 0.5);
+  const Ch = mat(0x3a4149, 0.55, 0.42);
+  const St = mat(0x8e98a2, 0.62, 0.36);
+  const Blk = mat(0x1c1e22, 0.08, 0.62);
+  const Rub = mat(0x121416, 0.02, 0.92);
+  const Gl = mat(0x152028, 0.4, 0.08, { transparent: true, opacity: 0.55 });
+  const Coal = mat(0x1a1816, 0.02, 0.94);
   const Lamp = mat(0xfff1c8, 0.05, 0.28, { emissive: 0xffd88a, emissiveIntensity: 0.75 });
-  const Red = mat(0xc42018, 0.15, 0.45);
+  const Red = mat(0xb42818, 0.08, 0.52);
 
   // —— Frame / belly ——
   box(root, Ch, 0.0, 1.15, 0, 11.2, 0.55, 3.5);
@@ -142,5 +143,7 @@ function box(parent, material, x, y, z, sx, sy, sz) {
 }
 
 function mat(color, metalness, roughness, extra = {}) {
-  return new THREE.MeshStandardMaterial({ color, metalness, roughness, ...extra });
+  const material = new THREE.MeshStandardMaterial({ color, metalness, roughness, ...extra });
+  const kind = roughness >= 0.82 ? 'rubber' : metalness >= 0.4 ? 'plate' : 'enamel';
+  return applyFinish(material, kind);
 }

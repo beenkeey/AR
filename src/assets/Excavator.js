@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyFinish } from './finishMaps.js';
 
 /**
  * Hard-surface mining excavator. Track bottoms sit on y=0.
@@ -7,13 +8,13 @@ export function createExcavator() {
   const root = new THREE.Group();
   root.name = 'Excavator';
 
-  const yellow = mat(0xf5c400, 0.18, 0.48);
-  const yellowDark = mat(0xd4a200, 0.2, 0.5);
-  const orange = mat(0xe86a12, 0.15, 0.5);
-  const black = mat(0x1a1c1e, 0.25, 0.5);
-  const steel = mat(0x8a929a, 0.55, 0.35);
-  const glass = mat(0x1a2832, 0.3, 0.15, { transparent: true, opacity: 0.5 });
-  const track = mat(0x2a2e32, 0.2, 0.72);
+  const yellow = mat(0xe4ae00, 0.05, 0.58);
+  const yellowDark = mat(0xc49200, 0.05, 0.64);
+  const orange = mat(0xd46512, 0.08, 0.55);
+  const black = mat(0x1a1c1e, 0.08, 0.6);
+  const steel = mat(0x8a929a, 0.62, 0.38);
+  const glass = mat(0x1a2832, 0.3, 0.1, { transparent: true, opacity: 0.5 });
+  const track = mat(0x24282c, 0.08, 0.86);
 
   // —— Tracks (bottom at y=0) ——
   for (const z of [1.65, -1.65]) {
@@ -130,5 +131,7 @@ function box(parent, material, x, y, z, sx, sy, sz) {
 }
 
 function mat(color, metalness, roughness, extra = {}) {
-  return new THREE.MeshStandardMaterial({ color, metalness, roughness, ...extra });
+  const material = new THREE.MeshStandardMaterial({ color, metalness, roughness, ...extra });
+  const kind = roughness >= 0.82 ? 'rubber' : metalness >= 0.4 ? 'plate' : 'enamel';
+  return applyFinish(material, kind);
 }

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyFinish } from './finishMaps.js';
 
 /**
  * Compact angular survey drone. Much smaller than a helicopter.
@@ -10,12 +11,12 @@ export function createMiningDrone() {
   inner.rotation.y = -Math.PI / 2;
   group.add(inner);
 
-  const body = mat(0xe8ecef, 0.25, 0.4);
-  const accent = mat(0xf5c400, 0.15, 0.45);
-  const teal = mat(0x1a8a9e, 0.25, 0.4);
-  const black = mat(0x1e2226, 0.35, 0.45);
-  const glass = mat(0x1a2832, 0.2, 0.15, { transparent: true, opacity: 0.5 });
-  const rotorMat = mat(0x2a2e32, 0.4, 0.4);
+  const body = mat(0xd5dbe2, 0.12, 0.48);
+  const accent = mat(0xe4ae00, 0.06, 0.55);
+  const teal = mat(0x1a7f92, 0.16, 0.42);
+  const black = mat(0x1e2226, 0.2, 0.5);
+  const glass = mat(0x1a2832, 0.2, 0.12, { transparent: true, opacity: 0.5 });
+  const rotorMat = mat(0x2a2e32, 0.15, 0.55);
   const led = mat(0xff3b2e, 0.1, 0.3, { emissive: 0xff2a18, emissiveIntensity: 1.1 });
 
   box(inner, body, 0, 0, 0, 1.15, 0.28, 0.55);
@@ -64,5 +65,7 @@ function box(parent, material, x, y, z, sx, sy, sz) {
 }
 
 function mat(color, metalness, roughness, extra = {}) {
-  return new THREE.MeshStandardMaterial({ color, metalness, roughness, ...extra });
+  const material = new THREE.MeshStandardMaterial({ color, metalness, roughness, ...extra });
+  const kind = roughness >= 0.82 ? 'rubber' : metalness >= 0.4 ? 'plate' : 'enamel';
+  return applyFinish(material, kind);
 }
