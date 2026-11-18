@@ -105,9 +105,10 @@ export function tickExcavator(ex, time, loadPoint = null) {
   if (loadPoint && ex.userData.house) {
     const local = ex.worldToLocal(loadPoint.clone());
     ex.userData.house.rotation.y = Math.atan2(-local.z, local.x);
-    if (ex.userData.boom) ex.userData.boom.rotation.z = -0.25;
-    if (ex.userData.stick) ex.userData.stick.rotation.z = 0.32;
-    if (ex.userData.bucket) ex.userData.bucket.rotation.z = -0.6;
+    // Raised over the rear lip. A low reach sits inside the truck body.
+    if (ex.userData.boom) ex.userData.boom.rotation.z = 0.75;
+    if (ex.userData.stick) ex.userData.stick.rotation.z = 0.31;
+    if (ex.userData.bucket) ex.userData.bucket.rotation.z = -0.2;
     return;
   }
   const t = ((time * 0.16 + (ex.userData.phase || 0)) % 1 + 1) % 1;

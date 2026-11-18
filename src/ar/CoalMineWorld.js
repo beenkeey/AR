@@ -211,11 +211,12 @@ export class CoalMineWorld {
   }
 
   _addBelAZs() {
-    const frames = this._loadCycleFrames();
     const routes = CONFIG.exhibition.belazRoutes || [];
     routes.forEach((route, i) => {
+      const scale = route.scale || 1.15;
+      const frames = this._loadCycleFrames(scale);
       const truck = createBelAZ();
-      truck.scale.setScalar(route.scale || 1.15);
+      truck.scale.setScalar(scale);
       this.scene.add(truck);
       const mover = {
         group: truck,
@@ -371,13 +372,15 @@ export class CoalMineWorld {
    * Shared lap: pull up beside the lower shovel, climb the existing spiral,
    * tip the bed at the rim coal pile, come back down.
    */
-  _loadCycleFrames() {
+  _loadCycleFrames(scale) {
     const loop = buildHaulLoop();
     const site = coalDigSites()[0];
     const ang = site.ang;
     const tx = -Math.sin(ang);
     const tz = Math.cos(ang);
-    const side = 9.2;
+    // Rear lip of the hopper sits just inside the shovel's reach.
+    // The body stays clear of the tracks; bigger trucks stand further out.
+    const side = 4.55 + 4.9 * scale;
     const park = new THREE.Vector3(
       Math.cos(ang) * site.standR + tx * side,
       site.deckY + 0.05,
@@ -427,8 +430,10 @@ export class CoalMineWorld {
 
     const nose = [park.x + tx * 18, park.z + tz * 18];
     addRoad(loop[join], 0, 0, 0, 2);
-    add(park.x, park.y, park.z, 0, 0.2, 1, 5, nose);
+    add(park.x, park.y, park.z, 0, 0, 0, 2, nose);
+    add(park.x, park.y, park.z, 0, 0.2, 1, 4, nose);
     add(park.x, park.y, park.z, 0, 1, 1, 8, nose);
+    add(park.x, park.y, park.z, 0, 1, 0, 2, nose);
     addRoad(loop[join], 0, 1, 0, 2);
 
     const count = loop.length;
