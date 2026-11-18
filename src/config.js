@@ -138,11 +138,11 @@ export const CONFIG = {
         ],
       },
     ],
-    // Same spiral (see HaulRoad). Phases put trucks at the floor, mid-ramp and rim.
+    // Same spiral between a stop at the lower shovel and a stop at the rim pile.
     belazRoutes: [
-      { scale: 1.2, duration: 100, phase: 0.02 },
-      { scale: 1.1, duration: 100, phase: 0.24 },
-      { scale: 1.02, duration: 100, phase: 0.47 },
+      { scale: 1.2, duration: 120, phase: 0 },
+      { scale: 1.1, duration: 120, phase: 0.34 },
+      { scale: 1.02, duration: 120, phase: 0.67 },
     ],
   },
   hyperspace: {

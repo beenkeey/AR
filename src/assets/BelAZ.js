@@ -70,7 +70,8 @@ export function createBelAZ() {
   box(bed, Y, -1.35, 3.55, 0, 8.0, 3.9, 4.35);
   // Beveled look via inset panels
   box(bed, Yd, -1.35, 5.45, 0, 7.9, 0.2, 4.25);
-  box(bed, Coal, -1.35, 3.35, 0, 7.1, 2.9, 3.55);
+  const coalFill = box(bed, Coal, -1.35, 3.35, 0, 7.1, 2.9, 3.55);
+  coalFill.name = 'BedCoal';
   box(bed, Yd, -1.35, 1.7, 0, 7.8, 0.3, 4.1);
   box(bed, Y, -5.45, 3.4, 0, 0.35, 3.6, 4.3);
   // Ribs
@@ -85,8 +86,17 @@ export function createBelAZ() {
   box(bed, Y, 3.55, 5.15, 0, 4.4, 0.32, 4.45);
   box(bed, Yd, 5.55, 4.55, 0, 0.4, 1.15, 4.25);
   box(bed, Y, 2.55, 4.65, 0, 0.4, 1.9, 4.4);
+  // Rear hinge. At rest the mesh stays put; rotation.z lifts the cab end.
+  const hingeX = -5.15;
+  const hingeY = 1.9;
+  for (const child of bed.children) {
+    child.position.x -= hingeX;
+    child.position.y -= hingeY;
+  }
+  bed.position.set(hingeX, hingeY, 0);
   root.add(bed);
   root.userData.bed = bed;
+  root.userData.bedCoal = coalFill;
 
   // —— Wheels: front single + rear dual ——
   wheel(root, 4.65, 1.15, 2.15, Rub, Y, St, 1.15);

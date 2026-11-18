@@ -211,28 +211,24 @@ export class CoalMineWorld {
   }
 
   _addBelAZs() {
-    const loop = buildHaulLoop();
+    const frames = this._loadCycleFrames();
     const routes = CONFIG.exhibition.belazRoutes || [];
     routes.forEach((route, i) => {
       const truck = createBelAZ();
       truck.scale.setScalar(route.scale || 1.15);
       this.scene.add(truck);
-      const pts = loop.map((p) => {
-        const v = new THREE.Vector3();
-        this._quarryLocalToWorld(p.x, p.y + 0.05, p.z, v);
-        return v;
-      });
       const mover = {
         group: truck,
-        points: pts,
-        duration: route.duration || 50,
-        phase: route.phase || i * 0.33,
+        frames,
+        duration: route.duration || 120,
+        phase: route.phase ?? i / Math.max(routes.length, 1),
         _pos: new THREE.Vector3(),
         _next: new THREE.Vector3(),
         _q: new THREE.Quaternion(),
         _aimed: false,
+        _load: 0,
       };
-      this._setPathPose(mover, 0);
+      this._setTruckJob(mover, 0);
       this.trucks.push(mover);
       if (i === 0) this.followTruck = mover;
     });
@@ -317,16 +313,10 @@ export class CoalMineWorld {
     }
 
     for (const truck of this.trucks) {
-      this._setPathPose(truck, this._time);
-      const dt = 0.35 / truck.duration;
-      sampleClosedSpline(
-        truck.points,
-        this._time / truck.duration + (truck.phase || 0) + dt,
-        truck._next,
-      );
+      this._setTruckJob(truck, this._time);
       _fwd.subVectors(truck._next, truck._pos);
       _fwd.y = 0;
-      if (_fwd.lengthSq() > 1e-8) {
+      if (_fwd.lengthSq() > 0.04) {
         _look.copy(truck.group.position).add(_fwd);
         truck.group.lookAt(_look);
         truck.group.rotateY(-Math.PI / 2);
@@ -365,7 +355,131 @@ export class CoalMineWorld {
       for (const blade of drone.rotors) blade.rotation.y += 0.9;
     }
 
-    for (const ex of this.excavators) tickExcavator(ex, this._time);
+    let loadPoint = null;
+    for (const truck of this.trucks) {
+      if (truck._load > 0.5) {
+        loadPoint = truck.group.localToWorld(new THREE.Vector3(-2.2, 4.2, 0));
+        break;
+      }
+    }
+    this.excavators.forEach((ex, i) => {
+      tickExcavator(ex, this._time, i === 0 ? loadPoint : null);
+    });
+  }
+
+  /**
+   * Shared lap: pull up beside the lower shovel, climb the existing spiral,
+   * tip the bed at the rim coal pile, come back down.
+   */
+  _loadCycleFrames() {
+    const loop = buildHaulLoop();
+    const site = coalDigSites()[0];
+    const ang = site.ang;
+    const tx = -Math.sin(ang);
+    const tz = Math.cos(ang);
+    const side = 9.2;
+    const park = new THREE.Vector3(
+      Math.cos(ang) * site.standR + tx * side,
+      site.deckY + 0.05,
+      Math.sin(ang) * site.standR + tz * side,
+    );
+    let join = 0;
+    let best = Infinity;
+    loop.forEach((p, i) => {
+      const d = (p.x - park.x) ** 2 + (p.z - park.z) ** 2;
+      if (d < best && p.y < -8) {
+        best = d;
+        join = i;
+      }
+    });
+    let rim = 0;
+    let score = -Infinity;
+    loop.forEach((p, i) => {
+      const sc = p.x + p.y * 3;
+      if (p.y > -1 && sc > score) {
+        score = sc;
+        rim = i;
+      }
+    });
+
+    const frames = [];
+    const add = (x, y, z, bed, coal, load, copies, aim) => {
+      const p = new THREE.Vector3();
+      this._quarryLocalToWorld(x, y, z, p);
+      let aimWorld = null;
+      if (aim) {
+        aimWorld = new THREE.Vector3();
+        this._quarryLocalToWorld(aim[0], y, aim[1], aimWorld);
+      }
+      for (let n = 0; n < copies; n += 1) {
+        frames.push({
+          p: p.clone(),
+          bed,
+          coal,
+          load,
+          aim: aimWorld ? aimWorld.clone() : null,
+        });
+      }
+    };
+    const addRoad = (p, bed, coal, load, copies = 1) => {
+      add(p.x, p.y + 0.05, p.z, bed, coal, load, copies, null);
+    };
+
+    const nose = [park.x + tx * 18, park.z + tz * 18];
+    addRoad(loop[join], 0, 0, 0, 2);
+    add(park.x, park.y, park.z, 0, 0.2, 1, 5, nose);
+    add(park.x, park.y, park.z, 0, 1, 1, 8, nose);
+    addRoad(loop[join], 0, 1, 0, 2);
+
+    const count = loop.length;
+    let span = (rim - join + count) % count;
+    for (let k = 1; k <= 30; k += 1) {
+      addRoad(loop[(join + Math.round((span * k) / 30)) % count], 0, 1, 0, 1);
+    }
+
+    add(86, 0.05, -10, 0, 1, 0, 2, null);
+    add(108, 0.05, -16, 0, 1, 0, 2, null);
+    add(108, 0.05, -16, 0.5, 0.15, 0, 8, [92, -28]);
+    add(108, 0.05, -16, 0, 0, 0, 2, [92, -28]);
+    add(86, 0.05, -10, 0, 0, 0, 2, null);
+    addRoad(loop[rim], 0, 0, 0, 2);
+
+    span = (join - rim + count) % count;
+    for (let k = 1; k <= 30; k += 1) {
+      addRoad(loop[(rim + Math.round((span * k) / 30)) % count], 0, 0, 0, 1);
+    }
+    return frames;
+  }
+
+  _setTruckJob(item, timeSec) {
+    const frames = item.frames;
+    const n = frames.length;
+    const u = ((timeSec / item.duration + (item.phase || 0)) % 1 + 1) % 1;
+    const scaled = u * n;
+    const i = Math.floor(scaled) % n;
+    const f = scaled - Math.floor(scaled);
+    const a = frames[i];
+    const b = frames[(i + 1) % n];
+    item._pos.lerpVectors(a.p, b.p, f);
+    item.group.position.copy(item._pos);
+    const hopper = item.group.userData.bed;
+    if (hopper) hopper.rotation.z = a.bed + (b.bed - a.bed) * f;
+    const fill = item.group.userData.bedCoal;
+    if (fill) fill.scale.y = Math.max(0.05, a.coal + (b.coal - a.coal) * f);
+    item._load = Math.max(a.load, b.load);
+    if (a.aim) {
+      item._next.copy(a.aim);
+      return;
+    }
+    let found = null;
+    for (let k = 1; k <= 8; k += 1) {
+      const q = frames[(i + k) % n].p;
+      if (q.distanceToSquared(a.p) > 1) {
+        found = q;
+        break;
+      }
+    }
+    item._next.copy(found || b.p);
   }
 }
 
