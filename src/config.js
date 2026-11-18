@@ -140,9 +140,9 @@ export const CONFIG = {
     ],
     // Same spiral between a stop at the lower shovel and a stop at the rim pile.
     belazRoutes: [
-      { scale: 1.2, duration: 120, phase: 0 },
-      { scale: 1.1, duration: 120, phase: 0.34 },
-      { scale: 1.02, duration: 120, phase: 0.67 },
+      { scale: 1.5, duration: 120, phase: 0 },
+      { scale: 1.35, duration: 120, phase: 0.34 },
+      { scale: 1.22, duration: 120, phase: 0.67 },
     ],
   },
   hyperspace: {

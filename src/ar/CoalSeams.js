@@ -6,7 +6,7 @@ import { queryHaul } from './HaulRoad.js';
  * Angles are chosen so both the tracks and the face stay off the haul road.
  */
 const FACES = [
-  { faceR: 28, standR: 22.0, deckY: -20.2, arc: 0.62, phase: 0.18, scale: 1 },
+  { faceR: 28, standR: 23.0, deckY: -20.2, arc: 0.62, phase: 0.18, scale: 1.35 },
   { faceR: 64, standR: 58.0, deckY: -4.8, arc: 0.55, phase: 0.37, scale: 1 },
 ];
 

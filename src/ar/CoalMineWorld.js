@@ -376,16 +376,21 @@ export class CoalMineWorld {
     const loop = buildHaulLoop();
     const site = coalDigSites()[0];
     const ang = site.ang;
-    const tx = -Math.sin(ang);
-    const tz = Math.cos(ang);
-    // Rear lip of the hopper sits just inside the shovel's reach.
-    // The body stays clear of the tracks; bigger trucks stand further out.
-    const side = 4.55 + 4.9 * scale;
+    // Rear lip just inside the shovel reach. Both sit on the flat bench
+    // (r 18.4–28); the offset is along the bench, not out into the face.
+    const exScale = site.scale || 1;
+    const lip = 4.94 * exScale - 0.45;
+    const dist = lip + 4.9 * scale;
+    const deckR = 23.2;
+    const dAng = 2 * Math.asin(Math.min(0.95, dist / (2 * deckR)));
+    const parkAng = ang + dAng;
     const park = new THREE.Vector3(
-      Math.cos(ang) * site.standR + tx * side,
+      Math.cos(parkAng) * deckR,
       site.deckY + 0.05,
-      Math.sin(ang) * site.standR + tz * side,
+      Math.sin(parkAng) * deckR,
     );
+    const noseTx = -Math.sin(parkAng);
+    const noseTz = Math.cos(parkAng);
     let join = 0;
     let best = Infinity;
     loop.forEach((p, i) => {
@@ -428,7 +433,7 @@ export class CoalMineWorld {
       add(p.x, p.y + 0.05, p.z, bed, coal, load, copies, null);
     };
 
-    const nose = [park.x + tx * 18, park.z + tz * 18];
+    const nose = [park.x + noseTx * 18, park.z + noseTz * 18];
     addRoad(loop[join], 0, 0, 0, 2);
     add(park.x, park.y, park.z, 0, 0, 0, 2, nose);
     add(park.x, park.y, park.z, 0, 0.2, 1, 4, nose);
@@ -442,11 +447,11 @@ export class CoalMineWorld {
       addRoad(loop[(join + Math.round((span * k) / 30)) % count], 0, 1, 0, 1);
     }
 
-    add(86, 0.05, -10, 0, 1, 0, 2, null);
+    add(96, 0.05, -36, 0, 1, 0, 2, null);
     add(108, 0.05, -16, 0, 1, 0, 2, null);
     add(108, 0.05, -16, 0.5, 0.15, 0, 8, [92, -28]);
     add(108, 0.05, -16, 0, 0, 0, 2, [92, -28]);
-    add(86, 0.05, -10, 0, 0, 0, 2, null);
+    add(96, 0.05, -36, 0, 0, 0, 2, null);
     addRoad(loop[rim], 0, 0, 0, 2);
 
     span = (join - rim + count) % count;
