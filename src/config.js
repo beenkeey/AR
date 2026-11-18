@@ -97,29 +97,44 @@ export const CONFIG = {
     walkDamp: 3.4,
     startYaw: -Math.PI / 2,
     // Waypoints are local to quarry center (inside the pit bowl).
-    // Small drones high over the bowl
+    // Survey drones over the bowl: small quad, larger quad, heavy hex.
     drones: [
       {
-        scale: 1.05,
+        kind: 'quad',
+        scale: 1.15,
         duration: 46,
         phase: 0,
         waypoints: [
-          [40, 36, 10],
-          [10, 42, -34],
-          [-32, 38, -18],
-          [-20, 44, 28],
-          [22, 40, 30],
+          [40, 34, 10],
+          [10, 40, -34],
+          [-32, 36, -18],
+          [-20, 42, 28],
+          [22, 38, 30],
         ],
       },
       {
-        scale: 0.9,
-        duration: 58,
-        phase: 0.4,
+        kind: 'quad',
+        scale: 1.85,
+        duration: 62,
+        phase: 0.38,
         waypoints: [
-          [18, 48, 20],
-          [-14, 52, -22],
-          [-28, 46, 8],
-          [8, 50, 26],
+          [18, 22, 20],
+          [-14, 28, -22],
+          [-36, 24, 8],
+          [8, 30, 32],
+        ],
+      },
+      {
+        kind: 'hex',
+        scale: 1.55,
+        duration: 78,
+        phase: 0.18,
+        waypoints: [
+          [52, 16, -6],
+          [20, 20, -42],
+          [-46, 18, -8],
+          [-16, 22, 40],
+          [34, 14, 28],
         ],
       },
     ],

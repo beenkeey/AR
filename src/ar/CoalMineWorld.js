@@ -240,7 +240,7 @@ export class CoalMineWorld {
 
   _addDrones() {
     for (const pose of CONFIG.exhibition.drones || []) {
-      const drone = createMiningDrone();
+      const drone = createMiningDrone(pose.kind || 'quad');
       drone.scale.setScalar(pose.scale || 1);
       this.scene.add(drone);
       const pts = pose.waypoints.map((p) => {
