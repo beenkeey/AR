@@ -81,6 +81,11 @@ export class CoalMineWorld {
           vec3 horizon = vec3(0.96, 0.84, 0.62);
           vec3 col = mix(horizon, mid, smoothstep(-0.04, 0.3, h));
           col = mix(col, zenith, smoothstep(0.2, 0.95, h));
+          float band = sin(n.x * 5.5 + n.z * 3.4 + uTime * 0.012);
+          float band2 = sin(n.x * 2.1 - n.z * 6.2 + 1.7);
+          float cloud = smoothstep(0.22, 0.92, band * 0.55 + band2 * 0.45);
+          float mask = smoothstep(0.06, 0.32, h) * (1.0 - smoothstep(0.58, 0.88, h));
+          col = mix(col, vec3(0.95, 0.96, 0.98), cloud * mask * 0.3);
           gl_FragColor = vec4(col, 1.0);
         }
       `,
@@ -109,6 +114,29 @@ export class CoalMineWorld {
     ground.position.y = 0.01;
     ground.receiveShadow = true;
     group.add(ground);
+    // Spoil mounds on the far side of the plant and the truck exit.
+    const heap = mat(0x7a624c, 0.04, 0.96);
+    const o = this._quarryOrigin;
+    for (const [a, r, h] of [
+      [1.6, 132, 1.5],
+      [2.3, 118, 2.1],
+      [2.9, 156, 1.7],
+      [-2.2, 128, 1.4],
+      [-1.7, 148, 2.0],
+    ]) {
+      const mound = box(
+        group,
+        heap,
+        o.x + Math.cos(a) * r,
+        h * 0.5,
+        o.z + Math.sin(a) * r,
+        2.8 + h,
+        h,
+        2.2 + h * 0.5,
+      );
+      mound.castShadow = true;
+      mound.receiveShadow = true;
+    }
     return group;
   }
 
@@ -277,14 +305,23 @@ export class CoalMineWorld {
       group.add(pl);
     }
 
-    // Safety berm around pit rim
-    const berm = new THREE.Mesh(
-      new THREE.TorusGeometry(79.5, 0.7, 8, WEAK ? 40 : 64),
-      mat(0x2faf55, 0.1, 0.5),
-    );
-    berm.rotation.x = Math.PI / 2;
-    berm.position.y = 0.4;
-    group.add(berm);
+    // Spoil windrow on the rim. Gap faces the truck exit toward the plant.
+    const spoil = mat(0x6a5344, 0.04, 0.96);
+    const spoilDark = mat(0x4a4038, 0.05, 0.94);
+    const gapAng = -0.12;
+    const rocks = WEAK ? 28 : 52;
+    for (let i = 0; i < rocks; i += 1) {
+      const a = (i / rocks) * Math.PI * 2;
+      let da = a - gapAng;
+      da = Math.atan2(Math.sin(da), Math.cos(da));
+      if (Math.abs(da) < 0.34) continue;
+      const n = ((i * 17) % 10) / 10;
+      const r = 80.1 + n * 0.7;
+      const h = 0.65 + n * 1.15;
+      const w = 1.35 + ((i * 3) % 5) * 0.22;
+      const chunk = box(group, i % 3 === 0 ? spoilDark : spoil, Math.cos(a) * r, h * 0.5, Math.sin(a) * r, w, h, 0.85 + n * 0.7);
+      chunk.rotation.y = a + n;
+    }
 
     group.traverse((n) => {
       if (n.isMesh) {

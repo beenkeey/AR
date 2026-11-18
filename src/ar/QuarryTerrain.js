@@ -75,7 +75,11 @@ export function createQuarryTerrain({
   function paintSoil(x, z, y, face) {
     const depth = THREE.MathUtils.clamp(-y / 30, 0, 1);
     tmpC.copy(colSoil).lerp(colDeep, depth * 0.35);
-    if (face > 0.05) tmpC.lerp(colFace, 0.32 * face);
+    if (face > 0.05) {
+      tmpC.lerp(colFace, 0.42 * face);
+      // One darker bedding plane on each highwall. Radius only, so the bench stays flat.
+      if (Math.abs(face - 0.62) < 0.1) tmpC.multiplyScalar(0.7);
+    }
     const n = hash2(Math.floor(x * 0.8), Math.floor(z * 0.8));
     tmpC.offsetHSL(0, (n - 0.5) * 0.03, (n - 0.5) * 0.035);
   }
@@ -151,6 +155,7 @@ export function createQuarryTerrain({
   mesh.receiveShadow = true;
   mesh.castShadow = true;
   group.add(mesh);
+  addBenchRubble(group, heightAt, faceAmount, segs);
 
   const haul = buildHaulLoop();
   let yMin = Infinity;
@@ -169,4 +174,43 @@ export function createQuarryTerrain({
   group.userData.haul = { yMin, yMax, rMin, rMax, points: haul.length };
   group.userData.coalSites = coalDigSites();
   return group;
+}
+
+/** Loose blocks on the flat benches, kept off the asphalt and the shovels. */
+function addBenchRubble(group, heightAt, faceAmount, segs) {
+  const light = new THREE.MeshStandardMaterial({ color: 0x6e5848, roughness: 0.97, metalness: 0.02 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x3e3632, roughness: 0.95, metalness: 0.04 });
+  const count = segs > 80 ? 34 : 14;
+  const sites = coalDigSites();
+  let placed = 0;
+  for (let i = 0; i < 240 && placed < count; i += 1) {
+    const a = rand(i) * Math.PI * 2;
+    const r = 20 + rand(i + 5) * 52;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    if (faceAmount(r) > 0.12) continue;
+    if (queryHaul(x, z).dist < HAUL.cover + HAUL.shoulder + 1.6) continue;
+    let nearDig = false;
+    for (const site of sites) {
+      const dx = x - Math.cos(site.ang) * site.standR;
+      const dz = z - Math.sin(site.ang) * site.standR;
+      if (dx * dx + dz * dz < 14 * 14) nearDig = true;
+    }
+    if (nearDig) continue;
+    const s = 0.9 + rand(i + 9) * 1.5;
+    const h = 0.4 + rand(i + 13) * 0.85;
+    const block = new THREE.Mesh(new THREE.BoxGeometry(s * 1.35, h, s), placed % 3 === 0 ? dark : light);
+    block.position.set(x, heightAt(r) + h * 0.5, z);
+    block.rotation.y = rand(i + 17) * 3.1;
+    block.castShadow = true;
+    block.receiveShadow = true;
+    group.add(block);
+    placed += 1;
+  }
+}
+
+function rand(i) {
+  let n = Math.imul(i + 1, 1597334677);
+  n = Math.imul(n ^ (n >>> 16), 2246822519);
+  return ((n ^ (n >>> 13)) >>> 0) / 4294967296;
 }
