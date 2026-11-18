@@ -125,53 +125,138 @@ export class CoalMineWorld {
     const orange = mat(0xe86a12, 0.15, 0.48);
     const coal = mat(0x2a2622, 0.05, 0.92);
     const metal = mat(0x8a949c, 0.5, 0.35);
+    const glass = mat(0x16303c, 0.45, 0.12);
+    const rust = mat(0x8a5a34, 0.35, 0.62);
 
     // Pad under the whole base
     box(group, concrete, 108, 0.12, 6, 42, 0.24, 36);
 
-    // Crusher block — grounded (center Y = half height)
+    // Crusher — same 9 m footprint. Hopper, ribs and a ladder sit on the building.
     box(group, concrete, 100, 4.5, -4, 9, 9, 9);
     box(group, orange, 100, 9.2, -4, 9.4, 0.4, 9.4);
-    box(group, yellow, 100, 5.5, 0.7, 5.5, 3.5, 0.25);
+    box(group, yellow, 100, 5.6, 0.7, 5.2, 0.45, 0.22);
+    box(group, yellow, 100, 2.4, 0.7, 5.2, 0.28, 0.22);
     box(group, teal, 100, 10.8, -4, 1.8, 2.8, 1.8);
+    for (const [dx, dz] of [[4.25, 4.25], [4.25, -4.25], [-4.25, 4.25], [-4.25, -4.25]]) {
+      box(group, dark, 100 + dx, 4.6, -4 + dz, 0.5, 9.2, 0.5);
+    }
+    box(group, dark, 100, 9.6, -4, 3.4, 0.55, 3.4);
+    const cheekW = box(group, concrete, 97.7, 10.35, -4, 0.4, 1.5, 3.6);
+    cheekW.rotation.z = 0.55;
+    const cheekE = box(group, concrete, 102.3, 10.35, -4, 0.4, 1.5, 3.6);
+    cheekE.rotation.z = -0.55;
+    box(group, dark, 105.4, 3.1, -4, 2.2, 1.2, 1.5);
+    box(group, metal, 105.8, 2.25, -4, 1.4, 0.28, 1.7);
+    box(group, metal, 100, 4.6, 0.75, 0.1, 9, 0.1);
+    box(group, metal, 100.65, 4.6, 0.75, 0.1, 9, 0.1);
+    for (let i = 0; i < 8; i += 1) {
+      box(group, metal, 100.32, 0.85 + i * 1.05, 0.75, 0.62, 0.07, 0.07);
+    }
+    box(group, dark, 102.3, 10.2, -6.3, 1.7, 1.15, 1.15);
+    box(group, metal, 102.3, 10.95, -6.3, 0.45, 0.4, 0.45);
 
-    // Control tower next to crusher (same side, not opposite rim)
+    // Control tower: floor bands, glass, parapet, roof mast.
     box(group, concrete, 112, 6, 14, 7, 12, 7);
     box(group, teal, 112, 12.3, 14, 7.4, 0.4, 7.4);
-    box(group, yellow, 112, 9.5, 17.6, 4.5, 2.5, 0.2);
-    box(group, dark, 112, 14.2, 14, 0.28, 3.2, 0.28);
+    box(group, yellow, 112, 9.4, 17.6, 4.8, 1.6, 0.16);
+    box(group, dark, 112, 14.6, 14, 0.22, 4, 0.22);
+    box(group, metal, 112, 16.7, 14, 1.4, 0.08, 0.08);
+    for (const y of [3.8, 7.4]) {
+      box(group, glass, 112, y, 17.58, 4.4, 1.35, 0.1);
+      box(group, glass, 115.58, y, 14, 0.1, 1.35, 4.2);
+    }
+    box(group, concrete, 112, 12.75, 17.35, 7.3, 0.8, 0.22);
+    box(group, concrete, 112, 12.75, 10.65, 7.3, 0.8, 0.22);
+    box(group, concrete, 108.65, 12.75, 14, 0.22, 0.8, 6.5);
+    box(group, concrete, 115.35, 12.75, 14, 0.22, 0.8, 6.5);
+    box(group, dark, 113.6, 13.15, 12.4, 1.8, 1.3, 1.6);
 
-    // Short conveyor on the pad (does not reach haul roads)
+    // Conveyor truss on the pad. Ends stay inside r≥95.
     const conv = new THREE.Group();
-    box(conv, metal, 0, 0, 0, 16, 0.4, 1.4);
-    box(conv, dark, 0, 0.28, 0, 15.5, 0.1, 1.05);
-    for (let i = -6; i <= 6; i += 3) {
-      box(conv, yellow, i, -0.7, 0.65, 0.18, 1.3, 0.18);
-      box(conv, yellow, i, -0.7, -0.65, 0.18, 1.3, 0.18);
+    box(conv, metal, 0, 0.42, 0.62, 16, 0.14, 0.14);
+    box(conv, metal, 0, 0.42, -0.62, 16, 0.14, 0.14);
+    box(conv, metal, 0, -0.28, 0.62, 16, 0.12, 0.12);
+    box(conv, metal, 0, -0.28, -0.62, 16, 0.12, 0.12);
+    box(conv, dark, 0, 0.55, 0, 15.2, 0.08, 0.85);
+    const bays = WEAK ? 4 : 7;
+    for (let i = 0; i < bays; i += 1) {
+      const x = -6.5 + (13 * i) / (bays - 1);
+      box(conv, yellow, x, 0.06, 0.62, 0.1, 0.7, 0.1);
+      box(conv, yellow, x, 0.06, -0.62, 0.1, 0.7, 0.1);
+      box(conv, metal, x, 0.06, 0, 0.08, 0.08, 1.15);
+    }
+    box(conv, dark, 7.7, 0.15, 0, 1.15, 1.15, 1.35);
+    box(conv, dark, -7.7, 0.15, 0, 1.15, 1.15, 1.35);
+    for (const x of [-4.5, 4.5]) {
+      box(conv, yellow, x, -1.15, 0.7, 0.14, 2.1, 0.14);
+      box(conv, yellow, x, -1.15, -0.7, 0.14, 2.1, 0.14);
     }
     conv.position.set(104, 2.4, 4);
     conv.rotation.y = 0.35;
     group.add(conv);
 
-    // Angular coal heaps (not spheres)
+    // Stockpiles. Extra lumps sit away from the truck stop at (108, −16).
     for (const [x, z, sx, sy, sz] of [
       [118, -8, 8, 3.2, 6],
       [122, 4, 6, 2.6, 5],
       [116, 22, 7, 3.0, 5.5],
     ]) {
       box(group, coal, x, sy * 0.5, z, sx, sy, sz);
-      box(group, coal, x + 1.5, sy * 0.35, z - 1.2, sx * 0.6, sy * 0.7, sz * 0.7);
+      box(group, coal, x + 1.7, sy * 0.78, z + 0.9, sx * 0.5, sy * 0.7, sz * 0.48);
+      box(group, coal, x + 0.3, sy * 0.22, z + 1.5, sx * 0.72, sy * 0.4, sz * 0.5);
     }
 
-    // Silos on the same side
+    // Silos, stiffener rings, ladders, and a gallery between them.
     for (const [x, z] of [[124, 12], [128, 20]]) {
-      const silo = new THREE.Mesh(new THREE.CylinderGeometry(3.0, 3.0, 8, 14), metal);
+      const silo = new THREE.Mesh(new THREE.CylinderGeometry(3.0, 3.0, 8, 16), metal);
       silo.position.set(x, 4.0, z);
       group.add(silo);
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.35, 14), orange);
-      cap.position.set(x, 8.2, z);
+      for (const [yy, h, color] of [[2.1, 0.2, dark], [6.5, 0.24, orange]]) {
+        const band = new THREE.Mesh(new THREE.CylinderGeometry(3.14, 3.14, h, 16), color);
+        band.position.set(x, yy, z);
+        group.add(band);
+      }
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(3.3, 3.05, 0.4, 16), orange);
+      cap.position.set(x, 8.15, z);
       group.add(cap);
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 2.2, 0.65, 12), metal);
+      lid.position.set(x, 8.6, z);
+      group.add(lid);
+      box(group, metal, x - 3.2, 4.1, z - 0.2, 0.08, 8, 0.08);
+      box(group, metal, x - 3.2, 4.1, z + 0.28, 0.08, 8, 0.08);
+      for (let i = 0; i < 7; i += 1) {
+        box(group, metal, x - 3.2, 0.8 + i * 1.05, z + 0.04, 0.06, 0.05, 0.46);
+      }
     }
+    const walk = new THREE.Group();
+    box(walk, metal, 0, 0, 0, 7.4, 0.12, 1.05);
+    box(walk, yellow, 0, 0.42, 0.48, 7.4, 0.08, 0.08);
+    box(walk, yellow, 0, 0.42, -0.48, 7.4, 0.08, 0.08);
+    for (const x of [-2.4, 0, 2.4]) box(walk, metal, x, 0.22, 0, 0.08, 0.4, 0.9);
+    walk.position.set(126, 6.55, 16);
+    walk.rotation.y = -Math.atan2(8, 4);
+    group.add(walk);
+
+    // Workshop and transformer on the north edge of the pad, off the dump road.
+    box(group, concrete, 98, 2.55, 20, 14, 5.1, 7);
+    box(group, dark, 98, 5.3, 20, 14.7, 0.32, 7.7);
+    box(group, teal, 98, 5.05, 20, 14.9, 0.14, 7.9);
+    box(group, glass, 98, 3.2, 16.42, 8.2, 1.15, 0.1);
+    box(group, dark, 95.6, 1.55, 16.42, 2.1, 2.9, 0.12);
+    box(group, yellow, 104.4, 2.5, 16.5, 0.16, 4.6, 0.1);
+    box(group, dark, 107.5, 1.15, 21.4, 2.4, 2.3, 1.5);
+    box(group, orange, 107.5, 2.4, 21.4, 2.5, 0.14, 1.6);
+
+    // Pipe rack over the pad, from the crusher toward the tower.
+    const pipe = new THREE.Group();
+    box(pipe, rust, 0, 0, 0, 22, 0.32, 0.32);
+    box(pipe, metal, 0, 0.26, 0, 22, 0.1, 0.1);
+    for (const x of [-6, 2, 9]) {
+      box(pipe, yellow, x, -3.6, 0, 0.16, 7.2, 0.16);
+    }
+    pipe.position.set(111, 7.4, 5);
+    pipe.rotation.y = -Math.atan2(10, 18);
+    group.add(pipe);
 
     // Light masts around the base cluster
     for (const [x, z] of [[96, 28], [120, 30], [96, -22], [124, -16]]) {
