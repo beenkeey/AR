@@ -98,17 +98,10 @@ function smooth(edge0, edge1, x) {
 }
 
 /**
- * Dig cycle, or a dump over `loadPoint` when a truck is waiting.
+ * One dig cycle: lower into the seam, curl, lift, return.
+ * t ≈ 0.40 is teeth in the face.
  */
-export function tickExcavator(ex, time, loadPoint = null) {
-  if (loadPoint && ex.userData.house) {
-    const local = ex.worldToLocal(loadPoint.clone());
-    ex.userData.house.rotation.y = Math.atan2(-local.z, local.x);
-    if (ex.userData.boom) ex.userData.boom.rotation.z = -0.05;
-    if (ex.userData.stick) ex.userData.stick.rotation.z = 0.22;
-    if (ex.userData.bucket) ex.userData.bucket.rotation.z = -0.7;
-    return;
-  }
+export function tickExcavator(ex, time) {
   const t = ((time * 0.16 + (ex.userData.phase || 0)) % 1 + 1) % 1;
   const keys = [
     { t: 0.0, b: -0.22, s: 0.12, k: 0.65 },
